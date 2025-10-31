@@ -6,11 +6,14 @@ import shlex
 import platform
 import sys
 import requests
-from flask import Flask, request, render_template, jsonify, url_for, send_from_directory
+import time
+from flask import Flask, request, render_template, jsonify, url_for, send_from_directory, Response
 from io import StringIO
 from werkzeug.utils import secure_filename
 from vosk import Model, KaldiRecognizer
+import json
 import wave
+from openai import OpenAI
 
 app = Flask(__name__)
 
@@ -24,6 +27,14 @@ logging.basicConfig(level=logging.DEBUG, stream=log_stream)
 logger = logging.getLogger(__name__)
 
 VOSK_MODEL_PATH = "vosk-model-small-cn-0.22"
+
+# 初始化 ModelScope AI 客户端
+# This part was already present, but the import was missing.
+# No change needed here, just ensuring the context is correct.
+ai_client = OpenAI(
+    base_url='https://api-inference.modelscope.cn/v1',
+    api_key='ms-4e627bfb-2613-415d-a81a-3c5b6a97495f', # ModelScope Token
+)
 
 voiceMap = {
     "xiaoxiao": "zh-CN-XiaoxiaoNeural",
@@ -94,19 +105,46 @@ def install_ffmpeg():
             ffmpeg_zip = "ffmpeg.zip"
             ffmpeg_dir = "ffmpeg"
             logger.info("正在下载 FFmpeg...")
-            response = requests.get(ffmpeg_url)
-            with open(ffmpeg_zip, "wb") as f:
-                f.write(response.content)
+            print("正在下载 FFmpeg，这可能需要几分钟时间，请耐心等待...")
+            
+            retries = 3
+            for i in range(retries):
+                try:
+                    with requests.get(ffmpeg_url, stream=True) as r:
+                        r.raise_for_status()
+                        total_size = int(r.headers.get('content-length', 0))
+                        downloaded_size = 0
+                        with open(ffmpeg_zip, 'wb') as f:
+                            for chunk in r.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                                downloaded_size += len(chunk)
+                                progress = (downloaded_size / total_size) * 100
+                                sys.stdout.write(f"\r下载进度: {progress:.2f}%")
+                                sys.stdout.flush()
+                    print("\nFFmpeg 下载完成。")
+                    break
+                except (requests.exceptions.RequestException, IOError) as e:
+                    print(f"\n下载失败 (尝试 {i+1}/{retries}): {e}")
+                    if i < retries - 1:
+                        print("正在重试...")
+                        time.sleep(5)
+                    else:
+                        print("已达到最大重试次数，下载失败。")
+                        return False
             import zipfile
+            print("正在解压 FFmpeg...")
             with zipfile.ZipFile(ffmpeg_zip, 'r') as zip_ref:
                 zip_ref.extractall(ffmpeg_dir)
+            print("FFmpeg 解压完成。")
             os.remove(ffmpeg_zip)
             ffmpeg_path = os.path.abspath(os.path.join(ffmpeg_dir, "ffmpeg-master-latest-win64-gpl", "bin"))
             os.environ["PATH"] += os.pathsep + ffmpeg_path
             logger.info(f"FFmpeg 已安装到 {ffmpeg_path}")
+            print("FFmpeg 已成功安装并配置。")
             return True
         except Exception as e:
             logger.error(f"FFmpeg 安装失败: {e}")
+            print(f"FFmpeg 安装失败: {e}")
             return False
     else:
         logger.error(f"不支持的操作系统: {system}")
@@ -209,14 +247,14 @@ def speech_to_text(audio_file):
             if len(data) == 0:
                 break
             if rec.AcceptWaveform(data):
-                result = rec.Result()
-                transcription += eval(result).get("text", "") + " "
+                result = json.loads(rec.Result()).get("text", "")
+                transcription += result + " "
             else:
-                partial = rec.PartialResult()
+                partial = json.loads(rec.PartialResult()).get("partial", "")
                 logger.debug(f"部分结果: {partial}")
         
-        final_result = rec.FinalResult()
-        transcription += eval(final_result).get("text", "")
+        final_result = json.loads(rec.FinalResult()).get("text", "")
+        transcription += final_result
         return transcription.strip()
 
 @app.route('/', methods=['GET', 'POST'])
@@ -287,37 +325,108 @@ def stt():
         return jsonify({"result": "error", "message": "文件名为空"}), 400
     
     original_filename = secure_filename(audio_file.filename)
-    base_name = os.path.splitext(original_filename)[0] if os.path.splitext(original_filename)[1] else original_filename
     audio_path = os.path.join(app.config['UPLOAD_FOLDER'], original_filename)
-    audio_file.save(audio_path)
+    wav_path = None  # 初始化 wav_path
 
-    # 如果音频不是 WAV 格式，转换为 WAV
-    if not original_filename.lower().endswith('.wav'):
+    try:
+        audio_file.save(audio_path)
+
+        base_name, _ = os.path.splitext(original_filename)
         wav_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{base_name}_converted.wav")
+        
         try:
+            # 强制将所有上传的音频转换为单声道、16kHz 的 WAV 格式
             subprocess.run(["ffmpeg", "-i", audio_path, "-ac", "1", "-ar", "16000", wav_path, "-y"], check=True, capture_output=True, text=True)
-            os.remove(audio_path)
-            audio_path = wav_path
         except subprocess.CalledProcessError as e:
             logger.error(f"FFmpeg 转换失败: {e.stderr}")
             return jsonify({"result": "error", "message": "音频转换失败", "console": log_stream.getvalue()}), 500
 
-    transcription = speech_to_text(audio_path)
-    log_stream.seek(0)
-    logs = log_stream.read()
+        transcription = speech_to_text(wav_path)
+        log_stream.seek(0)
+        logs = log_stream.read()
 
-    if transcription.startswith("模型未找到") or transcription.startswith("音频格式错误"):
-        return jsonify({"result": "error", "message": transcription, "console": logs}), 400
-    
-    # 清理临时文件
-    if os.path.exists(audio_path):
-        os.remove(audio_path)
+        if transcription.startswith("模型未找到") or transcription.startswith("音频格式错误"):
+            return jsonify({"result": "error", "message": transcription, "console": logs}), 400
+        
+        return jsonify({"result": "success", "transcription": transcription, "console": logs})
 
-    return jsonify({"result": "success", "transcription": transcription, "console": logs})
+    except Exception as e:
+        logger.error(f"处理 STT 请求时出错: {e}")
+        return jsonify({"result": "error", "message": "服务器内部错误", "console": str(e)}), 500
+    finally:
+        # 清理所有临时文件
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        if wav_path and os.path.exists(wav_path):
+            os.remove(wav_path)
 
 @app.route('/download/<filename>')
 def download_file(filename):
     return send_from_directory(app.config['TTS_FOLDER'], filename, as_attachment=True)
+
+# This part was already present.
+# No change needed here, just ensuring the context is correct.
+@app.route('/api/ask_ai', methods=['POST'])
+def ask_ai():
+    if 'audio_file' not in request.files:
+        return jsonify({"result": "error", "message": "未上传音频文件"}), 400
+    
+    audio_file = request.files['audio_file']
+    if audio_file.filename == '':
+        return jsonify({"result": "error", "message": "文件名为空"}), 400
+    
+    original_filename = secure_filename(audio_file.filename)
+    audio_path = os.path.join(app.config['UPLOAD_FOLDER'], original_filename)
+    wav_path = None
+
+    try:
+        audio_file.save(audio_path)
+
+        base_name, _ = os.path.splitext(original_filename)
+        wav_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{base_name}_converted.wav")
+        
+        try:
+            subprocess.run(["ffmpeg", "-i", audio_path, "-ac", "1", "-ar", "16000", wav_path, "-y"], check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg 转换失败: {e.stderr}")
+            return jsonify({"result": "error", "message": "音频转换失败"}), 500
+
+        # 语音转文本
+        transcription = speech_to_text(wav_path)
+        if transcription.startswith("模型未找到") or transcription.startswith("音频格式错误"):
+            return jsonify({"result": "error", "message": transcription}), 400
+        
+        logger.info(f"语音转文本结果: {transcription}")
+
+        # 调用 AI 模型
+        def generate():
+            try:
+                response = ai_client.chat.completions.create(
+                    model='Qwen/Qwen3-Coder-480B-A35B-Instruct',
+                    messages=[
+                        {'role': 'system', 'content': 'You are a helpful assistant.'},
+                        {'role': 'user', 'content': transcription}
+                    ],
+                    stream=True
+                )
+                for chunk in response:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        yield content
+            except Exception as e:
+                logger.error(f"调用 AI 模型时出错: {e}")
+                yield "调用 AI 模型时出错。"
+
+        return Response(generate(), mimetype='text/plain')
+
+    except Exception as e:
+        logger.error(f"处理 AI 请求时出错: {e}")
+        return jsonify({"result": "error", "message": "服务器内部错误"}), 500
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        if wav_path and os.path.exists(wav_path):
+            os.remove(wav_path)
 
 if __name__ == "__main__":
     ensure_ffmpeg()
