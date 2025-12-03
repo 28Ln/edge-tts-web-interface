@@ -398,10 +398,16 @@ def ask_ai():
         
         logger.info(f"语音转文本结果: {transcription}")
 
-        # 调用 AI 模型
-        def generate():
+        # 调用 AI 模型并返回 multipart 响应
+        def generate_multipart():
+            # Part 1: STT 结果
+            stt_json = json.dumps({"type": "stt_result", "transcription": transcription})
+            yield (b'--frame\r\n'
+                   b'Content-Type: application/json\r\n\r\n' + stt_json.encode('utf-8') + b'\r\n')
+
+            # Part 2: AI 流式响应
             try:
-                response = ai_client.chat.completions.create(
+                ai_response = ai_client.chat.completions.create(
                     model='Qwen/Qwen3-Coder-480B-A35B-Instruct',
                     messages=[
                         {'role': 'system', 'content': 'You are a helpful assistant.'},
@@ -409,15 +415,18 @@ def ask_ai():
                     ],
                     stream=True
                 )
-                for chunk in response:
+                for chunk in ai_response:
                     content = chunk.choices[0].delta.content
                     if content:
-                        yield content
+                        yield (b'--frame\r\n'
+                               b'Content-Type: text/plain; charset=utf-8\r\n\r\n' + content.encode('utf-8') + b'\r\n')
             except Exception as e:
                 logger.error(f"调用 AI 模型时出错: {e}")
-                yield "调用 AI 模型时出错。"
+                error_message = "调用 AI 模型时出错。"
+                yield (b'--frame\r\n'
+                       b'Content-Type: text/plain; charset=utf-8\r\n\r\n' + error_message.encode('utf-8') + b'\r\n')
 
-        return Response(generate(), mimetype='text/plain')
+        return Response(generate_multipart(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
     except Exception as e:
         logger.error(f"处理 AI 请求时出错: {e}")
