@@ -51,13 +51,18 @@ class TencentASR:
         
         return signature, credential_scope, signed_headers, algorithm
 
-    def recognize(self, audio_path: str, voice_format: str = "wav") -> dict:
+    def recognize(self, audio_path: str, voice_format: str = "wav", engine: str = "16k_zh_en") -> dict:
         """
         识别音频文件
         
         Args:
             audio_path: 音频文件路径
             voice_format: 音频格式 (wav, mp3, m4a, flac, ogg, amr 等)
+            engine: 引擎类型
+                - 16k_zh: 中文普通话
+                - 16k_zh_en: 中英文混合（默认）
+                - 16k_en: 纯英文
+                - 16k_zh_dialect: 中文方言
         
         Returns:
             dict: {"success": bool, "text": str, "error": str}
@@ -71,7 +76,7 @@ class TencentASR:
             params = {
                 "ProjectId": 0,
                 "SubServiceType": 2,  # 一句话识别
-                "EngSerViceType": "16k_zh",  # 16k 中文普通话
+                "EngSerViceType": engine,  # 引擎类型
                 "SourceType": 1,  # 语音数据来源为语音 base64
                 "VoiceFormat": voice_format,
                 "Data": audio_data,
@@ -128,13 +133,14 @@ class TencentASR:
         except Exception as e:
             return {"success": False, "text": "", "error": str(e)}
 
-    def recognize_url(self, audio_url: str, voice_format: str = "wav") -> dict:
+    def recognize_url(self, audio_url: str, voice_format: str = "wav", engine: str = "16k_zh_en") -> dict:
         """
         识别网络音频文件
         
         Args:
             audio_url: 音频文件 URL
             voice_format: 音频格式
+            engine: 引擎类型 (16k_zh_en=中英混合, 16k_zh=中文, 16k_en=英文)
         
         Returns:
             dict: {"success": bool, "text": str, "error": str}
@@ -143,7 +149,7 @@ class TencentASR:
             params = {
                 "ProjectId": 0,
                 "SubServiceType": 2,
-                "EngSerViceType": "16k_zh",
+                "EngSerViceType": engine,
                 "SourceType": 0,  # 语音 URL
                 "VoiceFormat": voice_format,
                 "Url": audio_url,

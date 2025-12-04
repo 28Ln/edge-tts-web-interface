@@ -18,8 +18,10 @@ TENCENT_APPID = "你的 AppId"
 ## 安装依赖
 
 ```bash
-pip install requests openai
+pip install requests openai websocket-client pyaudio
 ```
+
+> Windows 安装 pyaudio 可能需要：`pip install pipwin && pipwin install pyaudio`
 
 ## 使用方式
 
@@ -70,11 +72,43 @@ else:
 ## 文件说明
 
 - `config.py` - 配置文件（密钥）
-- `asr_client.py` - 腾讯云 ASR 客户端
+- `asr_client.py` - 一句话语音识别（HTTP，适合短音频）
+- `realtime_asr.py` - 实时语音识别（WebSocket，边说边出字）
 - `voice_chat.py` - 语音对话（ASR + AI）
+
+## 两种识别方式对比
+
+| 方式 | 延迟 | 时长限制 | 适合场景 |
+|------|------|----------|----------|
+| 一句话识别 | 1-3秒 | ≤60秒 | 短语音、文件识别 |
+| 实时识别 | 200-500ms | 无限制 | 实时对话、语音助手 |
+
+## 实时语音识别
+
+### 麦克风实时识别
+```bash
+cd tencent_asr
+python realtime_asr.py
+```
+
+### 代码调用
+```python
+from realtime_asr import RealtimeASR
+
+def on_result(text, is_final):
+    print(f"识别中: {text}")
+
+def on_final(sentence, full_text):
+    print(f"一句话完成: {sentence}")
+
+asr = RealtimeASR(engine="16k_zh_en")  # 中英文混合
+asr.start(on_result, on_final)
+```
 
 ## 注意事项
 
 1. 一句话识别限制音频时长 ≤ 60 秒
-2. 首次使用需要在腾讯云开通语音识别服务
-3. 有免费额度，超出后按量计费
+2. 实时识别需要麦克风权限
+3. 首次使用需要在腾讯云开通语音识别服务
+4. 有免费额度，超出后按量计费
+5. 默认使用 `16k_zh_en` 引擎，支持中英文混合
