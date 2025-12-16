@@ -16,6 +16,18 @@ instance/
 
 # Generated audio files
 tts/*.mp3
+tts/*.wav
+uploads/*.wav
+uploads/*.mp3
+test_*.wav
+test_*.mp3
+
+# Large model files (download separately)
+vosk-model-*/
+ffmpeg/
+
+# Config with secrets
+tencent_asr/config.py
 
 # OS generated files
 .DS_Store
