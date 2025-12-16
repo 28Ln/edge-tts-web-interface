@@ -26,8 +26,11 @@ test_*.mp3
 vosk-model-*/
 ffmpeg/
 
+# Environment variables (contains secrets)
+.env
+
 # Config template
-# tencent_asr/config.py  # 个人项目保留密钥
+# tencent_asr/config.py
 
 # OS generated files
 .DS_Store

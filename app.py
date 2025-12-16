@@ -15,6 +15,13 @@ import json
 import wave
 from openai import OpenAI
 
+# 加载 .env 文件 (如果存在)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv 未安装，使用系统环境变量
+
 # 尝试导入 SocketIO (可选)
 try:
     from flask_socketio import SocketIO

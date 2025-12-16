@@ -44,12 +44,12 @@ except Exception as e:
     tencent_asr = None
     logger.warning(f"腾讯云 ASR 不可用: {e}")
 
-# AI 客户端 (Gemini API)
+# AI 客户端 (支持环境变量配置)
 ai_client = OpenAI(
-    base_url='https://vip.sonetto.top/v1',
-    api_key='sk-GUWwGWHfsw3jBEUeYKFZ9o1oxzfNKhvHkzRynF29EPbK9Xtf',
+    base_url=os.environ.get('GEMINI_API_BASE', 'https://vip.sonetto.top/v1'),
+    api_key=os.environ.get('GEMINI_API_KEY', 'your_api_key'),
 )
-AI_MODEL = "[k]gemini-2.5-pro-aistudio-8"
+AI_MODEL = os.environ.get('GEMINI_MODEL', '[k]gemini-2.5-pro-aistudio-8')
 
 # TTS 语音映射（精简版）
 VOICE_MAP = {
