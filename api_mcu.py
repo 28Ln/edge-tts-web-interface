@@ -26,6 +26,12 @@ import sys
 # 创建蓝图
 mcu_api = Blueprint('mcu_api', __name__, url_prefix='/mcu')
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 VOSK_MODEL_PATH = "vosk-model-small-cn-0.22"
@@ -175,31 +181,12 @@ def speech_to_text_from_wav(wav_data, engine="vosk"):
 
 @mcu_api.route('/stt', methods=['POST'])
 def mcu_stt():
-    """
-    MCU 语音转文字接口
-    
-    请求方式: POST
-    Content-Type: 
-        - application/octet-stream (原始 PCM 数据)
-        - audio/wav (WAV 文件)
-        - multipart/form-data (文件上传)
-    
-    URL 参数:
-        - format: pcm 或 wav (默认 wav)
-        - rate: 采样率 (默认 16000)
-        - engine: vosk(本地) 或 tencent(腾讯云), 默认 vosk
-    
-    返回: 纯文本识别结果
-    
-    MCU 示例 (ESP32):
-        # 使用本地 Vosk
-        http.begin("http://server:2024/mcu/stt?format=pcm&rate=16000");
-        # 使用腾讯云 (识别更准)
-        http.begin("http://server:2024/mcu/stt?format=pcm&engine=tencent");
-    """
+    """MCU 语音转文字接口"""
     audio_format = request.args.get('format', 'wav')
     sample_rate = int(request.args.get('rate', 16000))
-    engine = request.args.get('engine', 'vosk')  # vosk 或 tencent
+    engine = request.args.get('engine', 'vosk')
+    
+    logger.info(f"📥 [STT] 收到语音识别请求 | 引擎:{engine} | 格式:{audio_format} | 采样率:{sample_rate}")
     
     try:
         # 获取音频数据
@@ -225,37 +212,20 @@ def mcu_stt():
         # 语音识别 (选择引擎)
         text, error = speech_to_text_from_wav(wav_data, engine=engine)
         if error:
+            logger.error(f"❌ [STT] 识别失败: {error}")
             return f"错误:{error}", 500
         
+        logger.info(f"✅ [STT] 识别成功: {text[:50]}..." if len(text) > 50 else f"✅ [STT] 识别成功: {text}")
         return text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
     
     except Exception as e:
-        logger.error(f"MCU STT 错误: {e}")
+        logger.error(f"❌ [STT] 异常: {e}")
         return f"错误:{str(e)}", 500
 
 
 @mcu_api.route('/tts', methods=['POST', 'GET'])
 def mcu_tts():
-    """
-    MCU 文字转语音接口
-    
-    请求方式: GET 或 POST
-    
-    GET 参数:
-        - text: 要转换的文字
-        - voice: 语音 (xiaoxiao/yunxi, 默认 xiaoxiao)
-        - format: 输出格式 (mp3/wav, 默认 wav)
-    
-    POST JSON:
-        {"text": "你好", "voice": "xiaoxiao", "format": "wav"}
-    
-    返回: 音频文件二进制数据
-    
-    MCU 示例 (ESP32):
-        http.begin("http://server:2024/mcu/tts?text=你好&format=wav");
-        http.GET();
-        // 读取返回的音频数据播放
-    """
+    """MCU 文字转语音接口"""
     if request.method == 'GET':
         text = request.args.get('text', '')
         voice_id = request.args.get('voice', 'xiaoxiao')
@@ -266,65 +236,53 @@ def mcu_tts():
         voice_id = data.get('voice', 'xiaoxiao')
         output_format = data.get('format', 'wav')
     
+    logger.info(f"📥 [TTS] 收到语音合成请求 | 文字:{text[:30]}... | 语音:{voice_id} | 格式:{output_format}")
+    
     if not text:
         return "错误:文字内容为空", 400
     
     voice = VOICE_MAP.get(voice_id, VOICE_MAP['xiaoxiao'])
     
     try:
-        # 生成临时文件
         temp_mp3 = os.path.join(TTS_FOLDER, "mcu_temp.mp3")
         temp_wav = os.path.join(TTS_FOLDER, "mcu_temp.wav")
         
-        # 使用 edge-tts 生成音频
         cmd = ["edge-tts", "--voice", voice, "--text", text, "--write-media", temp_mp3]
         subprocess.run(cmd, check=True, capture_output=True)
         
         if output_format == 'wav':
-            # 转换为 WAV (16kHz 单声道，适合 MCU 播放)
             subprocess.run([
                 "ffmpeg", "-i", temp_mp3, 
                 "-ac", "1", "-ar", "16000", "-acodec", "pcm_s16le",
                 "-y", temp_wav
             ], check=True, capture_output=True)
-            
+            logger.info(f"✅ [TTS] 语音合成成功")
             return send_file(temp_wav, mimetype='audio/wav')
         else:
+            logger.info(f"✅ [TTS] 语音合成成功")
             return send_file(temp_mp3, mimetype='audio/mpeg')
     
     except Exception as e:
-        logger.error(f"MCU TTS 错误: {e}")
+        logger.error(f"❌ [TTS] 语音合成失败: {e}")
         return f"错误:{str(e)}", 500
 
 
 @mcu_api.route('/ask', methods=['POST'])
 def mcu_ask():
-    """
-    MCU AI 问答接口 (纯文本)
-    
-    请求方式: POST
-    Content-Type: text/plain 或 application/json
-    
-    纯文本请求: 直接发送问题文字
-    JSON 请求: {"question": "你好"}
-    
-    返回: AI 回答的纯文本
-    
-    MCU 示例 (ESP32):
-        http.begin("http://server:2024/mcu/ask");
-        http.addHeader("Content-Type", "text/plain");
-        http.POST("今天天气怎么样");
-    """
+    """MCU AI 问答接口"""
     if request.content_type and 'application/json' in request.content_type:
         data = request.get_json() or {}
         question = data.get('question', '')
     else:
         question = request.get_data(as_text=True)
     
+    logger.info(f"📥 [AI] 收到问答请求 | 问题:{question[:50]}..." if len(question) > 50 else f"📥 [AI] 收到问答请求 | 问题:{question}")
+    
     if not question:
         return "错误:问题内容为空", 400
     
     try:
+        logger.info(f"🤖 [AI] 正在调用AI模型: {AI_MODEL}")
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
@@ -335,43 +293,23 @@ def mcu_ask():
         )
         
         answer = response.choices[0].message.content
+        logger.info(f"✅ [AI] 回答成功: {answer[:50]}..." if len(answer) > 50 else f"✅ [AI] 回答成功: {answer}")
         return answer, 200, {'Content-Type': 'text/plain; charset=utf-8'}
     
     except Exception as e:
-        logger.error(f"MCU AI 错误: {e}")
+        logger.error(f"❌ [AI] 调用失败: {e}")
         return f"错误:{str(e)}", 500
 
 
 @mcu_api.route('/voice_chat', methods=['POST'])
 def mcu_voice_chat():
-    """
-    MCU 一站式语音对话接口
-    
-    上传音频 -> 语音识别 -> AI回答 -> 返回语音
-    
-    请求方式: POST
-    Content-Type: application/octet-stream 或 multipart/form-data
-    
-    URL 参数:
-        - format: 输入音频格式 pcm/wav (默认 wav)
-        - rate: 采样率 (默认 16000)
-        - out: 输出格式 text/audio (默认 audio)
-        - engine: vosk(本地) 或 tencent(腾讯云), 默认 vosk
-    
-    返回: 
-        - out=text: JSON {"question": "识别文字", "answer": "AI回答"}
-        - out=audio: WAV 音频数据
-    
-    MCU 示例 (ESP32):
-        # 使用本地识别
-        http.begin("http://server:2024/mcu/voice_chat?format=pcm&out=audio");
-        # 使用腾讯云识别 (更准确)
-        http.begin("http://server:2024/mcu/voice_chat?format=pcm&engine=tencent&out=audio");
-    """
+    """MCU 一站式语音对话接口"""
     audio_format = request.args.get('format', 'wav')
     sample_rate = int(request.args.get('rate', 16000))
     output_type = request.args.get('out', 'audio')
-    engine = request.args.get('engine', 'vosk')  # vosk 或 tencent
+    engine = request.args.get('engine', 'vosk')
+    
+    logger.info(f"📥 [语音对话] 收到请求 | 引擎:{engine} | 格式:{audio_format} | 输出:{output_type}")
     
     try:
         # 1. 获取音频数据
@@ -385,6 +323,8 @@ def mcu_voice_chat():
         if not audio_data:
             return "错误:音频数据为空", 400
         
+        logger.info(f"📦 [语音对话] 收到音频数据: {len(audio_data)} bytes")
+        
         # 2. PCM 转 WAV
         if audio_format == 'pcm':
             wav_buffer = pcm_to_wav(audio_data, sample_rate)
@@ -392,15 +332,20 @@ def mcu_voice_chat():
         else:
             wav_data = audio_data
         
-        # 3. 语音识别 (选择引擎)
+        # 3. 语音识别
+        logger.info(f"🎤 [语音对话] 开始语音识别...")
         question, error = speech_to_text_from_wav(wav_data, engine=engine)
         if error:
+            logger.error(f"❌ [语音对话] 识别失败: {error}")
             return f"错误:{error}", 500
         
         if not question:
             return "错误:未识别到语音", 400
         
+        logger.info(f"✅ [语音对话] 识别结果: {question}")
+        
         # 4. AI 回答
+        logger.info(f"🤖 [语音对话] 调用AI...")
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
@@ -410,6 +355,7 @@ def mcu_voice_chat():
             stream=False
         )
         answer = response.choices[0].message.content
+        logger.info(f"✅ [语音对话] AI回答: {answer[:50]}..." if len(answer) > 50 else f"✅ [语音对话] AI回答: {answer}")
         
         # 5. 返回结果
         if output_type == 'text':
@@ -439,29 +385,13 @@ def mcu_voice_chat():
 
 @mcu_api.route('/voice_chat_full', methods=['POST'])
 def mcu_voice_chat_full():
-    """
-    完整语音对话接口 - 同时返回识别文字、AI回答、语音URL
-    
-    请求方式: POST
-    Content-Type: application/octet-stream
-    
-    URL 参数:
-        - format: 输入音频格式 pcm/wav (默认 wav)
-        - rate: 采样率 (默认 16000)
-        - engine: vosk(本地) 或 tencent(腾讯云), 默认 tencent
-    
-    返回 JSON:
-    {
-        "success": true,
-        "question": "用户说的话",
-        "answer": "AI的回答",
-        "audio_url": "/mcu/audio/reply_xxx.wav"
-    }
-    """
+    """完整语音对话接口 - 返回识别文字、AI回答、语音URL"""
     import time
     audio_format = request.args.get('format', 'wav')
     sample_rate = int(request.args.get('rate', 16000))
     engine = request.args.get('engine', 'tencent')
+    
+    logger.info(f"📥 [完整对话] 收到请求 | 引擎:{engine} | 格式:{audio_format}")
     
     try:
         # 1. 获取音频数据
@@ -475,6 +405,8 @@ def mcu_voice_chat_full():
         if not audio_data:
             return jsonify({"success": False, "error": "音频数据为空"}), 400
         
+        logger.info(f"📦 [完整对话] 收到音频: {len(audio_data)} bytes")
+        
         # 2. PCM 转 WAV
         if audio_format == 'pcm':
             wav_buffer = pcm_to_wav(audio_data, sample_rate)
@@ -483,14 +415,19 @@ def mcu_voice_chat_full():
             wav_data = audio_data
         
         # 3. 语音识别
+        logger.info(f"🎤 [完整对话] 开始识别...")
         question, error = speech_to_text_from_wav(wav_data, engine=engine)
         if error:
+            logger.error(f"❌ [完整对话] 识别失败: {error}")
             return jsonify({"success": False, "error": error}), 500
         
         if not question:
             return jsonify({"success": False, "error": "未识别到语音"}), 400
         
+        logger.info(f"✅ [完整对话] 识别结果: {question}")
+        
         # 4. AI 回答
+        logger.info(f"🤖 [完整对话] 调用AI...")
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
@@ -500,6 +437,7 @@ def mcu_voice_chat_full():
             stream=False
         )
         answer = response.choices[0].message.content
+        logger.info(f"✅ [完整对话] AI回答: {answer[:50]}..." if len(answer) > 50 else f"✅ [完整对话] AI回答: {answer}")
         
         # 5. 尝试生成语音文件 (TTS 失败不影响返回文字结果)
         timestamp = int(time.time() * 1000)

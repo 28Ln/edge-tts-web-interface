@@ -19,7 +19,7 @@ py app.py
 curl http://127.0.0.1:3003/mcu/ping
 
 # 外网测试
-curl http://你的服务器IP:3003/mcu/ping
+curl http://服务器IP:3003/mcu/ping
 # 返回: pong
 ```
 
@@ -72,7 +72,7 @@ curl http://你的服务器IP:3003/mcu/ping
 ### 1. 连接测试 `/mcu/ping`
 
 ```bash
-curl http://你的服务器:3003/mcu/ping
+curl http://服务器:3003/mcu/ping
 ```
 返回: `pong`
 
@@ -81,7 +81,7 @@ curl http://你的服务器:3003/mcu/ping
 ### 2. 查看状态 `/mcu/status`
 
 ```bash
-curl http://你的服务器:3003/mcu/status
+curl http://服务器:3003/mcu/status
 ```
 
 返回:
@@ -122,12 +122,12 @@ Content-Type: application/octet-stream
 **示例:**
 ```bash
 # 使用本地 Vosk
-curl -X POST "http://你的服务器:3003/mcu/stt?engine=vosk" \
+curl -X POST "http://服务器:3003/mcu/stt?engine=vosk" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @audio.wav
 
 # 使用腾讯云 (更准确)
-curl -X POST "http://你的服务器:3003/mcu/stt?engine=tencent" \
+curl -X POST "http://服务器:3003/mcu/stt?engine=tencent" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @audio.mp3
 ```
@@ -160,7 +160,7 @@ Content-Type: application/json
 
 **示例:**
 ```bash
-curl "http://你的服务器:3003/mcu/tts?text=你好世界&format=wav" -o output.wav
+curl "http://服务器:3003/mcu/tts?text=你好世界&format=wav" -o output.wav
 ```
 
 ---
@@ -187,7 +187,7 @@ Content-Type: application/json
 
 **示例:**
 ```bash
-curl -X POST "http://你的服务器:3003/mcu/ask" \
+curl -X POST "http://服务器:3003/mcu/ask" \
   -H "Content-Type: text/plain" \
   -d "你好"
 ```
@@ -221,12 +221,12 @@ Content-Type: application/octet-stream
 **示例:**
 ```bash
 # 返回文本
-curl -X POST "http://你的服务器:3003/mcu/voice_chat?engine=tencent&out=text" \
+curl -X POST "http://服务器:3003/mcu/voice_chat?engine=tencent&out=text" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @question.wav
 
 # 返回语音
-curl -X POST "http://你的服务器:3003/mcu/voice_chat?engine=tencent&out=audio" \
+curl -X POST "http://服务器:3003/mcu/voice_chat?engine=tencent&out=audio" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @question.wav -o reply.wav
 ```
@@ -305,7 +305,7 @@ void voiceChat(uint8_t* audio, size_t len) {
 ```python
 import requests
 
-SERVER = "http://你的服务器:3003"
+SERVER = "http://服务器:3003"
 
 # 语音转文字
 with open("audio.wav", "rb") as f:
@@ -339,7 +339,7 @@ with open("question.wav", "rb") as f:
 
 ## 新增接口详细说明
 
-### 7. 完整语音对话 `/mcu/voice_chat_full` ⭐新增
+### 7. 完整语音对话 `/mcu/voice_chat_full` 
 
 同时返回识别文字、AI回答、语音URL
 
@@ -363,13 +363,13 @@ Content-Type: application/octet-stream
 
 **示例:**
 ```bash
-curl -X POST "http://你的服务器:3003/mcu/voice_chat_full?engine=tencent" \
+curl -X POST "http://服务器:3003/mcu/voice_chat_full?engine=tencent" \
   --data-binary @audio.wav
 ```
 
 ---
 
-### 8. AI 流式问答 `/mcu/ask_stream` ⭐新增
+### 8. AI 流式问答 `/mcu/ask_stream` 
 
 实时返回 AI 回答 (SSE 格式)
 
@@ -386,7 +386,7 @@ Content-Type: text/plain
 data: 你好
 data: ！
 data: 有什么
-data: 可以帮你的？
+data: 可以帮？
 data: [DONE]
 ```
 
@@ -395,7 +395,7 @@ data: [DONE]
 import requests
 
 r = requests.post(
-    "http://你的服务器:3003/mcu/ask_stream",
+    "http://服务器:3003/mcu/ask_stream",
     data="你好".encode(),
     stream=True
 )
@@ -409,7 +409,7 @@ for line in r.iter_lines():
 
 ---
 
-### 9. 实时语音识别 (WebSocket) ⭐新增
+### 9. 实时语音识别 (WebSocket)
 
 边说边识别，实时返回结果
 
@@ -420,7 +420,7 @@ pip install flask-socketio
 
 **测试页面:**
 ```
-http://你的服务器:3003/realtime
+http://服务器:3003/realtime
 ```
 
 **WebSocket 事件:**
@@ -462,7 +462,7 @@ socket.emit('audio', pcmData);
 
 **配置步骤:**
 1. 在 `api_wechat.py` 中设置 `WECHAT_TOKEN`
-2. 在微信公众号后台配置服务器 URL: `http://你的域名/wechat/callback`
+2. 在微信公众号后台配置服务器 URL: `http://域名/wechat/callback`
 3. 开启"接收语音识别结果"功能
 
 **支持的消息类型:**
@@ -498,7 +498,7 @@ Content-Type: application/json
 **小程序示例:**
 ```javascript
 wx.request({
-    url: 'https://你的域名/wechat/chat',
+    url: 'https://域名/wechat/chat',
     method: 'POST',
     data: {
         message: '你好',
@@ -548,7 +548,7 @@ recorderManager.start({ format: 'mp3' });
 // 上传
 recorderManager.onStop((res) => {
     wx.uploadFile({
-        url: 'https://你的域名/wechat/voice?format=mp3&engine=tencent',
+        url: 'https://域名/wechat/voice?format=mp3&engine=tencent',
         filePath: res.tempFilePath,
         name: 'file',
         success(res) {
@@ -621,7 +621,7 @@ Page({
         wx.showLoading({ title: '识别中...' });
         
         wx.uploadFile({
-            url: 'https://你的域名/wechat/voice?format=mp3&engine=tencent',
+            url: 'https://域名/wechat/voice?format=mp3&engine=tencent',
             filePath: filePath,
             name: 'file',
             success: (res) => {

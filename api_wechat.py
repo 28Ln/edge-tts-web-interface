@@ -165,25 +165,19 @@ def wechat_callback():
 
 @wechat_api.route('/chat', methods=['POST'])
 def wechat_chat():
-    """
-    微信小程序/H5 文字对话接口
-    
-    请求:
-        POST /wechat/chat
-        Content-Type: application/json
-        {"message": "你好", "session_id": "xxx"}
-    
-    返回:
-        {"success": true, "reply": "AI回答", "session_id": "xxx"}
-    """
+    """微信小程序/H5 文字对话接口"""
     data = request.get_json() or {}
     message = data.get('message', '')
+    session_id = data.get('session_id', '')
+    
+    logger.info(f"📥 [微信-文字] 收到消息 | session:{session_id} | 内容:{message[:50]}..." if len(message) > 50 else f"📥 [微信-文字] 收到消息 | session:{session_id} | 内容:{message}")
     session_id = data.get('session_id', '')
     
     if not message:
         return jsonify({"success": False, "error": "消息内容为空"}), 400
     
     try:
+        logger.info(f"🤖 [微信-文字] 调用AI...")
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
@@ -193,6 +187,7 @@ def wechat_chat():
             stream=False
         )
         answer = response.choices[0].message.content
+        logger.info(f"✅ [微信-文字] 回复成功: {answer[:50]}..." if len(answer) > 50 else f"✅ [微信-文字] 回复成功: {answer}")
         
         return jsonify({
             "success": True,
@@ -200,31 +195,17 @@ def wechat_chat():
             "session_id": session_id
         })
     except Exception as e:
-        logger.error(f"微信对话错误: {e}")
+        logger.error(f"❌ [微信-文字] 错误: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @wechat_api.route('/voice', methods=['POST'])
 def wechat_voice():
-    """
-    微信小程序语音对话接口
-    
-    请求:
-        POST /wechat/voice
-        Content-Type: application/octet-stream 或 multipart/form-data
-        
-        URL 参数:
-            - format: 音频格式 (amr/wav/mp3/silk), 默认 amr
-            - engine: 识别引擎 (vosk/tencent), 默认 tencent
-    
-    返回:
-        {
-            "success": true,
-            "question": "识别的文字",
-            "answer": "AI回答"
-        }
-    """
+    """微信小程序语音对话接口"""
     audio_format = request.args.get('format', 'amr')
+    engine = request.args.get('engine', 'tencent')
+    
+    logger.info(f"📥 [微信-语音] 收到请求 | 格式:{audio_format} | 引擎:{engine}")
     engine = request.args.get('engine', 'tencent')
     
     try:
@@ -251,14 +232,19 @@ def wechat_voice():
                 return jsonify({"success": False, "error": error}), 500
         
         # 语音识别
+        logger.info(f"🎤 [微信-语音] 开始识别...")
         question, error = speech_to_text_from_wav(wav_data, engine=engine)
         if error:
+            logger.error(f"❌ [微信-语音] 识别失败: {error}")
             return jsonify({"success": False, "error": error}), 500
         
         if not question:
             return jsonify({"success": False, "error": "未识别到语音"}), 400
         
+        logger.info(f"✅ [微信-语音] 识别结果: {question}")
+        
         # AI 回答
+        logger.info(f"🤖 [微信-语音] 调用AI...")
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
@@ -268,6 +254,7 @@ def wechat_voice():
             stream=False
         )
         answer = response.choices[0].message.content
+        logger.info(f"✅ [微信-语音] AI回答: {answer[:50]}..." if len(answer) > 50 else f"✅ [微信-语音] AI回答: {answer}")
         
         return jsonify({
             "success": True,
@@ -276,25 +263,17 @@ def wechat_voice():
         })
     
     except Exception as e:
-        logger.error(f"微信语音对话错误: {e}")
+        logger.error(f"❌ [微信-语音] 错误: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @wechat_api.route('/stt', methods=['POST'])
 def wechat_stt():
-    """
-    微信小程序语音转文字接口
-    
-    请求:
-        POST /wechat/stt?format=amr&engine=tencent
-        Content-Type: application/octet-stream
-        [音频数据]
-    
-    返回:
-        {"success": true, "text": "识别结果"}
-    """
+    """微信小程序语音转文字接口"""
     audio_format = request.args.get('format', 'amr')
     engine = request.args.get('engine', 'tencent')
+    
+    logger.info(f"📥 [微信-STT] 收到请求 | 格式:{audio_format} | 引擎:{engine}")
     
     try:
         audio_data = request.get_data()
