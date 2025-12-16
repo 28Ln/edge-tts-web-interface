@@ -15,7 +15,36 @@ import json
 import wave
 from openai import OpenAI
 
+# 尝试导入 SocketIO (可选)
+try:
+    from flask_socketio import SocketIO
+    SOCKETIO_AVAILABLE = True
+except ImportError:
+    SOCKETIO_AVAILABLE = False
+    print("提示: 安装 flask-socketio 可启用实时语音识别 (pip install flask-socketio)")
+
 app = Flask(__name__)
+
+# 注册 MCU 专用 API
+from api_mcu import mcu_api
+app.register_blueprint(mcu_api)
+
+# 注册微信 API
+from api_wechat import wechat_api
+app.register_blueprint(wechat_api)
+
+# 初始化 SocketIO (如果可用)
+if SOCKETIO_AVAILABLE:
+    socketio = SocketIO(app, cors_allowed_origins="*")
+    from api_websocket import register_websocket_handlers, create_websocket_test_page
+    register_websocket_handlers(socketio)
+    
+    @app.route('/realtime')
+    def realtime_page():
+        """实时语音识别测试页面"""
+        return create_websocket_test_page()
+else:
+    socketio = None
 
 app.config['TTS_FOLDER'] = 'tts'
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -64,6 +93,12 @@ def remove_html(string):
     return regex.sub('', string)
 
 def check_ffmpeg_installed():
+    # 先检查本地 ffmpeg 目录
+    local_ffmpeg = os.path.join(os.path.dirname(__file__), "ffmpeg", "ffmpeg-master-latest-win64-gpl", "bin")
+    if os.path.exists(local_ffmpeg):
+        os.environ["PATH"] = local_ffmpeg + os.pathsep + os.environ.get("PATH", "")
+        logger.info(f"使用本地 FFmpeg: {local_ffmpeg}")
+    
     try:
         subprocess.run(["ffmpeg", "-version"], check=True, capture_output=True, text=True)
         logger.info("FFmpeg 已安装")
@@ -443,5 +478,17 @@ if __name__ == "__main__":
         print(f"请下载 vosk-model-small-cn-0.22.zip 并解压到 {VOSK_MODEL_PATH}")
         print("下载地址: https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip")
         sys.exit(1)
-    print("服务器正在运行，请访问：http://127.0.0.1:2024")
-    app.run(port=2024, host="0.0.0.0", debug=True)
+    
+    print("=" * 50)
+    print("服务器正在运行")
+    print("=" * 50)
+    print(f"Web 界面:        http://127.0.0.1:2024")
+    print(f"MCU API:         http://127.0.0.1:2024/mcu/...")
+    if SOCKETIO_AVAILABLE:
+        print(f"实时语音识别:    http://127.0.0.1:2024/realtime")
+        print("=" * 50)
+        socketio.run(app, port=2024, host="0.0.0.0", debug=True, allow_unsafe_werkzeug=True)
+    else:
+        print("提示: pip install flask-socketio 可启用实时语音")
+        print("=" * 50)
+        app.run(port=2024, host="0.0.0.0", debug=True)
