@@ -4,7 +4,7 @@
 import requests
 import os
 
-SERVER = "http://127.0.0.1:2024"
+SERVER = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 
 print("=" * 60)
 print("微信 API 测试")

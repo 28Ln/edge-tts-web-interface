@@ -2,8 +2,9 @@ import requests
 import os
 import json
 
-# 服务器的基本 URL
-BASE_URL = "http://127.0.0.1:2024"
+# 服务器的基本 URL (支持环境变量配置)
+import os
+BASE_URL = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 TTS_URL = f"{BASE_URL}/api/tts"
 ASK_AI_URL = f"{BASE_URL}/api/ask_ai"
 

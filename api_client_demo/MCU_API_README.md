@@ -10,7 +10,9 @@
 python app.py
 ```
 
-服务器将在 `http://127.0.0.1:2024` 启动。
+服务器将在 `http://0.0.0.0:3003` 启动 (本地和外网均可访问)。
+
+可通过环境变量指定端口: `set PORT=3005 && python app.py`
 
 ### 2. 测试 API
 
@@ -51,7 +53,7 @@ pong
 **MCU 代码示例 (ESP32):**
 ```cpp
 HTTPClient http;
-http.begin("http://192.168.1.100:2024/mcu/ping");
+http.begin("http://192.168.1.100:3003/mcu/ping");
 int code = http.GET();
 if (code == 200) {
     Serial.println("服务器在线");
@@ -86,7 +88,7 @@ Content-Type: application/octet-stream
 **MCU 代码示例:**
 ```cpp
 HTTPClient http;
-http.begin("http://server:2024/mcu/stt?format=pcm&rate=16000");
+http.begin("http://server:3003/mcu/stt?format=pcm&rate=16000");
 http.addHeader("Content-Type", "application/octet-stream");
 http.POST(audio_buffer, audio_length);
 String text = http.getString();
@@ -131,7 +133,7 @@ Content-Type: application/json
 **MCU 代码示例:**
 ```cpp
 HTTPClient http;
-http.begin("http://server:2024/mcu/tts?text=你好&format=wav");
+http.begin("http://server:3003/mcu/tts?text=你好&format=wav");
 int code = http.GET();
 if (code == 200) {
     WiFiClient* stream = http.getStreamPtr();
@@ -169,7 +171,7 @@ Content-Type: application/json
 **MCU 代码示例:**
 ```cpp
 HTTPClient http;
-http.begin("http://server:2024/mcu/ask");
+http.begin("http://server:3003/mcu/ask");
 http.addHeader("Content-Type", "text/plain");
 http.POST("你好");
 String answer = http.getString();
@@ -210,7 +212,7 @@ Content-Type: application/octet-stream
 **MCU 代码示例:**
 ```cpp
 HTTPClient http;
-http.begin("http://server:2024/mcu/voice_chat?format=pcm&out=audio");
+http.begin("http://server:3003/mcu/voice_chat?format=pcm&out=audio");
 http.addHeader("Content-Type", "application/octet-stream");
 http.POST(recorded_audio, length);
 
@@ -281,7 +283,7 @@ void voiceAssistant() {
     
     // 2. 上传并获取回复
     HTTPClient http;
-    http.begin("http://server:2024/mcu/voice_chat?format=pcm&out=audio");
+    http.begin("http://server:3003/mcu/voice_chat?format=pcm&out=audio");
     http.addHeader("Content-Type", "application/octet-stream");
     http.POST(audio_buffer, audio_length);
     

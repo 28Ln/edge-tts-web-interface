@@ -6,7 +6,7 @@
 import requests
 import os
 
-SERVER = "http://127.0.0.1:2024"
+SERVER = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 
 print("=" * 60)
 print("新功能测试")
@@ -75,5 +75,5 @@ print("测试完成!")
 print("=" * 60)
 
 # 3. 提示 WebSocket 测试
-print("\n提示: 访问 http://127.0.0.1:2024/realtime 测试实时语音识别")
+print(f"\n提示: 访问 {SERVER}/realtime 测试实时语音识别")
 print("(需要先安装: pip install flask-socketio)")

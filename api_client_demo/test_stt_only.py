@@ -5,7 +5,7 @@
 import requests
 import os
 
-SERVER = "http://127.0.0.1:2024"
+SERVER = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 
 # 测试文件列表 (优先使用有效的音频)
 test_files = [

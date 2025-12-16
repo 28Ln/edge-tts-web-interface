@@ -2,11 +2,13 @@
 快速测试脚本 - 最简单的 MCU API 调用示例
 
 运行: python api_client_demo/quick_test.py
+指定服务器: set SERVER_URL=http://你的IP:3003 && python api_client_demo/quick_test.py
 """
 
 import requests
+import os
 
-SERVER = "http://127.0.0.1:2024"
+SERVER = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 
 # 1. 测试连接
 print("1. 测试连接...")

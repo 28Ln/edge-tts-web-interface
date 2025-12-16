@@ -479,16 +479,22 @@ if __name__ == "__main__":
         print("下载地址: https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip")
         sys.exit(1)
     
+    # 服务端口配置
+    PORT = int(os.environ.get('PORT', 3003))
+    
     print("=" * 50)
     print("服务器正在运行")
     print("=" * 50)
-    print(f"Web 界面:        http://127.0.0.1:2024")
-    print(f"MCU API:         http://127.0.0.1:2024/mcu/...")
+    print(f"端口: {PORT}")
+    print(f"本地访问: http://127.0.0.1:{PORT}")
+    print(f"外网访问: http://你的IP:{PORT}")
+    print(f"MCU API:  /mcu/...")
+    print(f"微信 API: /wechat/...")
     if SOCKETIO_AVAILABLE:
-        print(f"实时语音识别:    http://127.0.0.1:2024/realtime")
+        print(f"实时语音: /realtime")
         print("=" * 50)
-        socketio.run(app, port=2024, host="0.0.0.0", debug=True, allow_unsafe_werkzeug=True)
+        socketio.run(app, port=PORT, host="0.0.0.0", debug=False, allow_unsafe_werkzeug=True)
     else:
         print("提示: pip install flask-socketio 可启用实时语音")
         print("=" * 50)
-        app.run(port=2024, host="0.0.0.0", debug=True)
+        app.run(port=PORT, host="0.0.0.0", debug=False)

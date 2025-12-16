@@ -1,11 +1,16 @@
 """
 完整 API 测试脚本 - 测试所有接口
+
+使用方法:
+    本地测试: py api_client_demo/test_all_api.py
+    指定服务器: set SERVER_URL=http://你的IP:3003 && py api_client_demo/test_all_api.py
 """
 import requests
 import os
 import time
 
-SERVER = "http://127.0.0.1:2024"
+# 服务器地址 (支持环境变量配置)
+SERVER = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 TEST_AUDIO = "static/测试.mp3"
 
 results = {}

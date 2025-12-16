@@ -4,13 +4,22 @@
 
 ### 1. 启动服务器
 ```bash
+# 默认端口 3003
+py app.py
+
+# 指定端口
+set PORT=3005
 py app.py
 ```
-服务器运行在 `http://127.0.0.1:2024`
+服务器运行在 `http://0.0.0.0:3003` (本地和外网均可访问)
 
 ### 2. 测试连接
 ```bash
-curl http://127.0.0.1:2024/mcu/ping
+# 本地测试
+curl http://127.0.0.1:3003/mcu/ping
+
+# 外网测试
+curl http://你的服务器IP:3003/mcu/ping
 # 返回: pong
 ```
 
@@ -63,7 +72,7 @@ curl http://127.0.0.1:2024/mcu/ping
 ### 1. 连接测试 `/mcu/ping`
 
 ```bash
-curl http://127.0.0.1:2024/mcu/ping
+curl http://你的服务器:3003/mcu/ping
 ```
 返回: `pong`
 
@@ -72,7 +81,7 @@ curl http://127.0.0.1:2024/mcu/ping
 ### 2. 查看状态 `/mcu/status`
 
 ```bash
-curl http://127.0.0.1:2024/mcu/status
+curl http://你的服务器:3003/mcu/status
 ```
 
 返回:
@@ -113,12 +122,12 @@ Content-Type: application/octet-stream
 **示例:**
 ```bash
 # 使用本地 Vosk
-curl -X POST "http://127.0.0.1:2024/mcu/stt?engine=vosk" \
+curl -X POST "http://你的服务器:3003/mcu/stt?engine=vosk" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @audio.wav
 
 # 使用腾讯云 (更准确)
-curl -X POST "http://127.0.0.1:2024/mcu/stt?engine=tencent" \
+curl -X POST "http://你的服务器:3003/mcu/stt?engine=tencent" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @audio.mp3
 ```
@@ -151,7 +160,7 @@ Content-Type: application/json
 
 **示例:**
 ```bash
-curl "http://127.0.0.1:2024/mcu/tts?text=你好世界&format=wav" -o output.wav
+curl "http://你的服务器:3003/mcu/tts?text=你好世界&format=wav" -o output.wav
 ```
 
 ---
@@ -178,7 +187,7 @@ Content-Type: application/json
 
 **示例:**
 ```bash
-curl -X POST "http://127.0.0.1:2024/mcu/ask" \
+curl -X POST "http://你的服务器:3003/mcu/ask" \
   -H "Content-Type: text/plain" \
   -d "你好"
 ```
@@ -212,12 +221,12 @@ Content-Type: application/octet-stream
 **示例:**
 ```bash
 # 返回文本
-curl -X POST "http://127.0.0.1:2024/mcu/voice_chat?engine=tencent&out=text" \
+curl -X POST "http://你的服务器:3003/mcu/voice_chat?engine=tencent&out=text" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @question.wav
 
 # 返回语音
-curl -X POST "http://127.0.0.1:2024/mcu/voice_chat?engine=tencent&out=audio" \
+curl -X POST "http://你的服务器:3003/mcu/voice_chat?engine=tencent&out=audio" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @question.wav -o reply.wav
 ```
@@ -296,7 +305,7 @@ void voiceChat(uint8_t* audio, size_t len) {
 ```python
 import requests
 
-SERVER = "http://127.0.0.1:2024"
+SERVER = "http://你的服务器:3003"
 
 # 语音转文字
 with open("audio.wav", "rb") as f:
@@ -354,7 +363,7 @@ Content-Type: application/octet-stream
 
 **示例:**
 ```bash
-curl -X POST "http://127.0.0.1:2024/mcu/voice_chat_full?engine=tencent" \
+curl -X POST "http://你的服务器:3003/mcu/voice_chat_full?engine=tencent" \
   --data-binary @audio.wav
 ```
 
@@ -386,7 +395,7 @@ data: [DONE]
 import requests
 
 r = requests.post(
-    "http://127.0.0.1:2024/mcu/ask_stream",
+    "http://你的服务器:3003/mcu/ask_stream",
     data="你好".encode(),
     stream=True
 )
@@ -411,7 +420,7 @@ pip install flask-socketio
 
 **测试页面:**
 ```
-http://127.0.0.1:2024/realtime
+http://你的服务器:3003/realtime
 ```
 
 **WebSocket 事件:**

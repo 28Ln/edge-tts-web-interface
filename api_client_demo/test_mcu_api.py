@@ -11,8 +11,9 @@ import requests
 import os
 import struct
 
-# 服务器地址
-BASE_URL = "http://127.0.0.1:2024"
+# 服务器地址 (支持环境变量配置)
+import os
+BASE_URL = os.environ.get('SERVER_URL', 'http://127.0.0.1:3003')
 
 
 def test_ping():
