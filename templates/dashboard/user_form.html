@@ -1,0 +1,90 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{% if user %}编辑用户{% else %}创建用户{% endif %}{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <a href="{{ url_for('dashboard.users') }}" class="text-blue-600 hover:underline">&larr; 返回用户列表</a>
+    <h1 class="text-2xl font-bold text-gray-800 mt-2">
+        {% if user %}编辑用户: {{ user.username }}{% else %}创建新用户{% endif %}
+    </h1>
+</div>
+
+<div class="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <form method="POST" class="space-y-6">
+        {% if not user %}
+        <!-- 创建时需要填写用户名和邮箱 -->
+        <div>
+            <label for="username" class="block text-sm font-medium text-gray-700">用户名 *</label>
+            <input type="text" name="username" id="username" required
+                   class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                   placeholder="例如: user1">
+        </div>
+        
+        <div>
+            <label for="email" class="block text-sm font-medium text-gray-700">邮箱 *</label>
+            <input type="email" name="email" id="email" required
+                   class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                   placeholder="例如: user1@example.com">
+        </div>
+        {% endif %}
+        
+        <div class="border-t pt-6">
+            <h3 class="text-lg font-medium text-gray-800 mb-4">配额设置</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="daily_requests" class="block text-sm font-medium text-gray-700">
+                        每日请求数
+                    </label>
+                    <input type="number" name="daily_requests" id="daily_requests"
+                           value="{{ user.daily_requests if user else 1000 }}"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label for="daily_tokens" class="block text-sm font-medium text-gray-700">
+                        每日 Token 数
+                    </label>
+                    <input type="number" name="daily_tokens" id="daily_tokens"
+                           value="{{ user.daily_tokens if user else 100000 }}"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label for="daily_audio_seconds" class="block text-sm font-medium text-gray-700">
+                        每日音频秒数
+                    </label>
+                    <input type="number" name="daily_audio_seconds" id="daily_audio_seconds"
+                           value="{{ user.daily_audio_seconds if user else 600 }}"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+        </div>
+        
+        {% if user %}
+        <div class="border-t pt-6">
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="is_active" 
+                       {% if user.is_active %}checked{% endif %}
+                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="is_active" class="ml-2 block text-sm text-gray-700">
+                    启用用户
+                </label>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="flex justify-end space-x-4 pt-4">
+            <a href="{{ url_for('dashboard.users') }}" 
+               class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                取消
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                {% if user %}保存修改{% else %}创建用户{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

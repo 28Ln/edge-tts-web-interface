@@ -59,6 +59,9 @@ def create_app() -> Flask:
                 static_folder='../../static',
                 template_folder='../../templates')
     
+    # Session 配置（Dashboard 需要）
+    app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+    
     # 设置日志
     setup_logger("app")
     setup_logger("middleware")
@@ -76,12 +79,14 @@ def create_app() -> Flask:
     from .admin import admin_bp
     from .openapi import openapi_bp
     from .wechat import wechat_bp
+    from .dashboard import dashboard_bp
     
     app.register_blueprint(mcu_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(openapi_bp)
     app.register_blueprint(wechat_bp)
+    app.register_blueprint(dashboard_bp)
     
     # 注册 v2 API
     from .v2 import register_v2_routes

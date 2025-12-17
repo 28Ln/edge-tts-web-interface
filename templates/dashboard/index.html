@@ -1,0 +1,149 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}仪表盘{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-800">仪表盘</h1>
+    <p class="text-gray-600">系统概览和统计数据</p>
+</div>
+
+<!-- 统计卡片 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm text-gray-500">用户总数</p>
+                <p class="text-2xl font-semibold text-gray-800">{{ user_count }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm text-gray-500">活跃用户</p>
+                <p class="text-2xl font-semibold text-gray-800">{{ active_users }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm text-gray-500">API Keys</p>
+                <p class="text-2xl font-semibold text-gray-800">{{ key_count }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm text-gray-500">今日请求</p>
+                <p class="text-2xl font-semibold text-gray-800">{{ today_requests }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表和列表 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- 请求趋势图 -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">最近7天请求趋势</h3>
+        <canvas id="requestChart" height="200"></canvas>
+    </div>
+    
+    <!-- 活跃用户 -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">今日活跃用户</h3>
+        {% if recent_users %}
+        <div class="space-y-3">
+            {% for user in recent_users %}
+            <div class="flex items-center justify-between py-2 border-b last:border-0">
+                <div>
+                    <p class="font-medium text-gray-800">{{ user[0] }}</p>
+                    <p class="text-sm text-gray-500">{{ user[1] }}</p>
+                </div>
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                    {{ user[2] }} 次请求
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-center py-8">暂无数据</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 快捷操作 -->
+<div class="mt-8 bg-white rounded-lg shadow p-6">
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">快捷操作</h3>
+    <div class="flex flex-wrap gap-4">
+        <a href="{{ url_for('dashboard.create_user') }}" 
+           class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            + 创建用户
+        </a>
+        <a href="/docs" target="_blank"
+           class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
+            📖 API 文档
+        </a>
+        <a href="/health" target="_blank"
+           class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
+            ❤️ 健康检查
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 请求趋势图
+const ctx = document.getElementById('requestChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ week_data | map(attribute='date') | list | tojson }},
+        datasets: [{
+            label: '请求数',
+            data: {{ week_data | map(attribute='count') | list | tojson }},
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: { beginAtZero: true }
+        }
+    }
+});
+</script>
+{% endblock %}

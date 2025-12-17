@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}管理面板{% endblock %} - Edge TTS API</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% if session.get('admin_logged_in') %}
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="{{ url_for('dashboard.index') }}" class="text-xl font-bold text-gray-800">
+                        🎤 Edge TTS API
+                    </a>
+                    <div class="hidden md:flex ml-10 space-x-4">
+                        <a href="{{ url_for('dashboard.index') }}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint == 'dashboard.index' %}bg-gray-100 text-gray-900{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                            仪表盘
+                        </a>
+                        <a href="{{ url_for('dashboard.users') }}"
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if 'user' in request.endpoint %}bg-gray-100 text-gray-900{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                            用户管理
+                        </a>
+                        <a href="{{ url_for('dashboard.usage') }}"
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint == 'dashboard.usage' %}bg-gray-100 text-gray-900{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                            用量统计
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <a href="{{ url_for('dashboard.logout') }}" class="text-gray-600 hover:text-gray-900 text-sm">
+                        退出登录
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Flash 消息 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        {% for category, message in messages %}
+        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
+             class="rounded-md p-4 mb-2 {% if category == 'error' %}bg-red-50 text-red-800{% elif category == 'success' %}bg-green-50 text-green-800{% else %}bg-blue-50 text-blue-800{% endif %}">
+            <div class="flex justify-between">
+                <span>{{ message }}</span>
+                <button @click="show = false" class="ml-4">&times;</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- 主内容 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-white border-t mt-auto">
+        <div class="max-w-7xl mx-auto px-4 py-4 text-center text-gray-500 text-sm">
+            Edge TTS Web Interface v2.0 | 
+            <a href="/docs" target="_blank" class="text-blue-600 hover:underline">API 文档</a>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
