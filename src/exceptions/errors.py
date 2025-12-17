@@ -3,6 +3,8 @@
 统一错误码和错误消息
 """
 
+from ..constants import ErrorCode, ERROR_CODE_TO_HTTP_STATUS
+
 
 class AppError(Exception):
     """应用基础异常"""
@@ -28,36 +30,36 @@ class AppError(Exception):
 
 class ValidationError(AppError):
     """参数验证错误"""
-    code = 400
-    error_code = "VALIDATION_ERROR"
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.VALIDATION_ERROR, 400)
+    error_code = ErrorCode.VALIDATION_ERROR
     message = "参数验证失败"
 
 
 class AudioError(AppError):
     """音频处理错误"""
-    code = 400
-    error_code = "AUDIO_ERROR"
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.AUDIO_ERROR, 500)
+    error_code = ErrorCode.AUDIO_ERROR
     message = "音频处理失败"
 
 
 class ASRError(AppError):
     """语音识别错误"""
-    code = 500
-    error_code = "ASR_ERROR"
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.ASR_ERROR, 500)
+    error_code = ErrorCode.ASR_ERROR
     message = "语音识别失败"
 
 
 class AIError(AppError):
     """AI服务错误"""
-    code = 500
-    error_code = "AI_ERROR"
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.AI_ERROR, 500)
+    error_code = ErrorCode.AI_ERROR
     message = "AI服务调用失败"
 
 
 class TTSError(AppError):
     """语音合成错误"""
-    code = 500
-    error_code = "TTS_ERROR"
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.TTS_ERROR, 500)
+    error_code = ErrorCode.TTS_ERROR
     message = "语音合成失败"
 
 
@@ -66,6 +68,20 @@ class ConfigError(AppError):
     code = 500
     error_code = "CONFIG_ERROR"
     message = "配置错误"
+
+
+class AuthError(AppError):
+    """认证错误"""
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.AUTH_FAILED, 401)
+    error_code = ErrorCode.AUTH_FAILED
+    message = "认证失败"
+
+
+class QuotaExceededError(AppError):
+    """配额超限错误"""
+    code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.QUOTA_EXCEEDED, 429)
+    error_code = ErrorCode.QUOTA_EXCEEDED
+    message = "配额已用尽"
 
 
 # 错误码映射表
