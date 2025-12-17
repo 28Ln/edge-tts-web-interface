@@ -45,12 +45,20 @@ def create_app() -> Flask:
     
     # 设置日志
     setup_logger("app")
+    setup_logger("middleware")
+    
+    # 注册中间件
+    from ..utils.middleware import register_middleware
+    register_middleware(app)
     
     # 注册错误处理器
     register_error_handlers(app)
     
     # 注册蓝图
     from .mcu import mcu_bp
+    from .health import health_bp
+    
     app.register_blueprint(mcu_bp)
+    app.register_blueprint(health_bp)
     
     return app
