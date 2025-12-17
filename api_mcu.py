@@ -55,7 +55,97 @@ ai_client = OpenAI(
     base_url=os.environ.get('GEMINI_API_BASE', 'https://vip.sonetto.top/v1'),
     api_key=os.environ.get('GEMINI_API_KEY', 'your_api_key'),
 )
-AI_MODEL = os.environ.get('GEMINI_MODEL', '[k]gemini-2.5-pro-aistudio-8')
+AI_MODEL = os.environ.get('GEMINI_MODEL', 'deepseek-r1-search')
+
+# 对话历史 (按 session 存储，保留最近 2 轮对话)
+conversation_history = {}
+MAX_HISTORY = 2  # 保留最近 2 轮对话 (4条消息: 2问2答)
+
+
+def get_system_prompt(short=False):
+    """获取带时间上下文的 system prompt"""
+    from datetime import datetime
+    import locale
+    
+    now = datetime.now()
+    
+    # 时间信息
+    date_str = now.strftime("%Y年%m月%d日")
+    time_str = now.strftime("%H:%M")
+    weekday_map = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+    weekday = weekday_map[now.weekday()]
+    
+    # 时间段
+    hour = now.hour
+    if 5 <= hour < 12:
+        period = "上午"
+    elif 12 <= hour < 14:
+        period = "中午"
+    elif 14 <= hour < 18:
+        period = "下午"
+    elif 18 <= hour < 22:
+        period = "晚上"
+    else:
+        period = "深夜"
+    
+    context = f"""Current time context:
+- Date: {date_str} ({weekday})
+- Time: {time_str} ({period})
+- Location: China (default, user may specify otherwise)"""
+
+    if short:
+        return f"""You are a helpful assistant.
+
+{context}
+
+IMPORTANT: Reply in the SAME language as the user's question.
+Keep answers concise (under 100 words)."""
+    
+    return f"""You are a helpful assistant.
+
+{context}
+
+IMPORTANT RULES:
+1. You MUST reply in the SAME language as the user's question.
+   - Chinese question → Chinese answer
+   - English question → English answer
+   - Japanese question → Japanese answer
+   
+2. When user mentions "今天/today/今日", use the current date above.
+   When user mentions "现在/now", use the current time above.
+   
+3. Keep your answers concise, accurate and helpful.
+4. If you don't know something, say so honestly."""
+
+
+def get_messages_with_history(session_id, question):
+    """获取带历史上下文的消息列表"""
+    if session_id not in conversation_history:
+        conversation_history[session_id] = []
+    
+    history = conversation_history[session_id]
+    
+    # 构建消息列表（每次都获取最新时间）
+    messages = [{'role': 'system', 'content': get_system_prompt()}]
+    messages.extend(history)
+    messages.append({'role': 'user', 'content': question})
+    
+    return messages
+
+
+def save_to_history(session_id, question, answer):
+    """保存对话到历史"""
+    if session_id not in conversation_history:
+        conversation_history[session_id] = []
+    
+    history = conversation_history[session_id]
+    history.append({'role': 'user', 'content': question})
+    history.append({'role': 'assistant', 'content': answer})
+    
+    # 只保留最近 MAX_HISTORY 轮对话
+    if len(history) > MAX_HISTORY * 2:
+        conversation_history[session_id] = history[-(MAX_HISTORY * 2):]
+
 
 # TTS 语音映射（精简版）
 VOICE_MAP = {
@@ -105,6 +195,8 @@ def speech_to_text_tencent(wav_data):
     if not TENCENT_ASR_AVAILABLE:
         return None, "腾讯云 ASR 未配置"
     
+    logger.info(f"🔍 [腾讯ASR] 开始识别，音频大小: {len(wav_data)} bytes")
+    
     # 保存临时文件
     temp_file = None
     try:
@@ -112,12 +204,22 @@ def speech_to_text_tencent(wav_data):
         temp_file.write(wav_data)
         temp_file.close()
         
+        logger.info(f"🔍 [腾讯ASR] 临时文件: {temp_file.name}")
+        
         result = tencent_asr.recognize(temp_file.name, voice_format="wav", engine="16k_zh")
         
+        logger.info(f"🔍 [腾讯ASR] 返回结果: {result}")
+        
         if result["success"]:
-            return result["text"], None
+            text = result["text"]
+            if not text:
+                logger.warning(f"⚠️ [腾讯ASR] 识别成功但结果为空")
+            return text, None
         else:
             return None, result["error"]
+    except Exception as e:
+        logger.error(f"❌ [腾讯ASR] 异常: {e}")
+        return None, str(e)
     finally:
         if temp_file and os.path.exists(temp_file.name):
             os.unlink(temp_file.name)
@@ -125,6 +227,8 @@ def speech_to_text_tencent(wav_data):
 
 def convert_to_wav_16k(audio_data):
     """将任意音频格式转换为 16kHz 单声道 WAV"""
+    logger.info(f"🔄 [转换] 开始转换音频，原始大小: {len(audio_data)} bytes")
+    
     temp_input = None
     temp_output = None
     try:
@@ -146,10 +250,14 @@ def convert_to_wav_16k(audio_data):
         
         if result.returncode == 0 and os.path.exists(temp_output.name):
             with open(temp_output.name, 'rb') as f:
-                return f.read(), None
+                wav_data = f.read()
+            logger.info(f"✅ [转换] 转换成功，WAV大小: {len(wav_data)} bytes")
+            return wav_data, None
         else:
+            logger.error(f"❌ [转换] FFmpeg失败: {result.stderr}")
             return None, f"音频转换失败: {result.stderr}"
     except Exception as e:
+        logger.error(f"❌ [转换] 异常: {e}")
         return None, str(e)
     finally:
         if temp_input and os.path.exists(temp_input.name):
@@ -270,29 +378,37 @@ def mcu_tts():
 @mcu_api.route('/ask', methods=['POST'])
 def mcu_ask():
     """MCU AI 问答接口"""
+    session_id = request.args.get('session', 'default')
+    
     if request.content_type and 'application/json' in request.content_type:
         data = request.get_json() or {}
         question = data.get('question', '')
+        session_id = data.get('session', session_id)
     else:
         question = request.get_data(as_text=True)
     
-    logger.info(f"📥 [AI] 收到问答请求 | 问题:{question[:50]}..." if len(question) > 50 else f"📥 [AI] 收到问答请求 | 问题:{question}")
+    logger.info(f"📥 [AI] 收到问答请求 | session:{session_id} | 问题:{question[:50]}..." if len(question) > 50 else f"📥 [AI] 收到问答请求 | session:{session_id} | 问题:{question}")
     
     if not question:
         return "错误:问题内容为空", 400
     
     try:
         logger.info(f"🤖 [AI] 正在调用AI模型: {AI_MODEL}")
+        
+        # 获取带历史上下文的消息
+        messages = get_messages_with_history(session_id, question)
+        
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
-            messages=[
-                {'role': 'system', 'content': '你是一个有帮助的助手，请简洁回答。'},
-                {'role': 'user', 'content': question}
-            ],
+            messages=messages,
             stream=False
         )
         
         answer = response.choices[0].message.content
+        
+        # 保存到历史
+        save_to_history(session_id, question, answer)
+        
         logger.info(f"✅ [AI] 回答成功: {answer[:50]}..." if len(answer) > 50 else f"✅ [AI] 回答成功: {answer}")
         return answer, 200, {'Content-Type': 'text/plain; charset=utf-8'}
     
@@ -349,7 +465,7 @@ def mcu_voice_chat():
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
-                {'role': 'system', 'content': '你是一个有帮助的助手，请简洁回答，不超过100字。'},
+                {'role': 'system', 'content': get_system_prompt(short=True)},
                 {'role': 'user', 'content': question}
             ],
             stream=False
@@ -431,7 +547,7 @@ def mcu_voice_chat_full():
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
-                {'role': 'system', 'content': '你是一个有帮助的助手，请简洁回答，不超过100字。'},
+                {'role': 'system', 'content': get_system_prompt(short=True)},
                 {'role': 'user', 'content': question}
             ],
             stream=False
@@ -492,6 +608,7 @@ def mcu_ask_stream():
     
     请求方式: POST
     Content-Type: text/plain 或 application/json
+    参数: session (可选，用于保持对话上下文)
     
     返回: text/event-stream (SSE 格式)
     
@@ -502,33 +619,48 @@ def mcu_ask_stream():
         data: 可以帮你的？
         data: [DONE]
     """
+    session_id = request.args.get('session', 'default')
+    
     if request.content_type and 'application/json' in request.content_type:
         data = request.get_json() or {}
         question = data.get('question', '')
+        session_id = data.get('session', session_id)
     else:
         question = request.get_data(as_text=True)
     
     if not question:
         return "错误:问题内容为空", 400
     
+    # 获取带历史上下文的消息
+    messages = get_messages_with_history(session_id, question)
+    
     def generate():
+        full_answer = []
         try:
             response = ai_client.chat.completions.create(
                 model=AI_MODEL,
-                messages=[
-                    {'role': 'system', 'content': '你是一个有帮助的助手，请简洁回答。'},
-                    {'role': 'user', 'content': question}
-                ],
+                messages=messages,
                 stream=True
             )
             
             for chunk in response:
-                if chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    yield f"data: {content}\n\n"
+                # 安全检查
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'content') and delta.content:
+                        content = delta.content
+                        full_answer.append(content)
+                        yield f"data: {content}\n\n"
+            
+            # 保存历史
+            if full_answer:
+                answer_text = ''.join(full_answer)
+                save_to_history(session_id, question, answer_text)
+                logger.info(f"📝 [AI流式] 已保存对话历史 session={session_id}, 回答长度={len(answer_text)}")
             
             yield "data: [DONE]\n\n"
         except Exception as e:
+            logger.error(f"❌ [AI流式] 错误: {e}")
             yield f"data: [ERROR] {str(e)}\n\n"
     
     return Response(generate(), mimetype='text/event-stream')

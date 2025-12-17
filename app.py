@@ -40,6 +40,15 @@ app.register_blueprint(mcu_api)
 from api_wechat import wechat_api
 app.register_blueprint(wechat_api)
 
+# 注册原生 WebSocket API (兼容安卓 OkHttp)
+try:
+    from api_websocket_native import init_native_websocket
+    init_native_websocket(app)
+    NATIVE_WS_AVAILABLE = True
+except ImportError as e:
+    NATIVE_WS_AVAILABLE = False
+    print(f"提示: 安装 flask-sock 可启用原生 WebSocket (pip install flask-sock)")
+
 # 初始化 SocketIO (如果可用)
 if SOCKETIO_AVAILABLE:
     socketio = SocketIO(app, cors_allowed_origins="*")
@@ -481,10 +490,13 @@ def ask_ai():
 
 if __name__ == "__main__":
     ensure_ffmpeg()
+    
+    # Vosk 模型检查 (可选，没有也能启动)
     if not os.path.exists(VOSK_MODEL_PATH):
-        print(f"请下载 vosk-model-small-cn-0.22.zip 并解压到 {VOSK_MODEL_PATH}")
-        print("下载地址: https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip")
-        sys.exit(1)
+        print("⚠️  Vosk 模型未找到，本地语音识别不可用")
+        print(f"   下载地址: https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip")
+        print("   解压到项目根目录即可启用本地识别")
+        print("   (腾讯云识别仍可使用)")
     
     # 服务端口配置
     PORT = int(os.environ.get('PORT', 3003))
@@ -497,8 +509,10 @@ if __name__ == "__main__":
     print(f"外网访问: http://你的IP:{PORT}")
     print(f"MCU API:  /mcu/...")
     print(f"微信 API: /wechat/...")
+    if NATIVE_WS_AVAILABLE:
+        print(f"原生WS:   /ws/realtime (安卓兼容)")
     if SOCKETIO_AVAILABLE:
-        print(f"实时语音: /realtime")
+        print(f"SocketIO: /realtime (Web测试页)")
         print("=" * 50)
         socketio.run(app, port=PORT, host="0.0.0.0", debug=False, allow_unsafe_werkzeug=True)
     else:
