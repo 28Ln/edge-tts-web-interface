@@ -61,3 +61,69 @@ def retry(
 class RetryableError(Exception):
     """可重试的错误"""
     pass
+
+
+import signal
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+
+
+class TimeoutError(Exception):
+    """超时错误"""
+    pass
+
+
+def timeout(seconds: float):
+    """
+    超时装饰器
+    
+    Args:
+        seconds: 超时时间（秒）
+    
+    Usage:
+        @timeout(30)
+        def long_running_task():
+            pass
+    
+    Note:
+        使用线程池实现，适用于 I/O 密集型任务
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(func, *args, **kwargs)
+                try:
+                    return future.result(timeout=seconds)
+                except FuturesTimeoutError:
+                    logger.error(f"{func.__name__} 执行超时 ({seconds}s)")
+                    raise TimeoutError(f"操作超时 ({seconds}s)")
+        return wrapper
+    return decorator
+
+
+def retry_with_timeout(
+    max_attempts: int = 3,
+    delay: float = 1.0,
+    backoff: float = 2.0,
+    timeout_seconds: float = 30.0,
+    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+):
+    """
+    带超时的重试装饰器
+    
+    Args:
+        max_attempts: 最大重试次数
+        delay: 初始延迟（秒）
+        backoff: 延迟倍数
+        timeout_seconds: 单次调用超时时间
+        exceptions: 需要重试的异常类型
+    """
+    def decorator(func):
+        @wraps(func)
+        @timeout(timeout_seconds)
+        @retry(max_attempts=max_attempts, delay=delay, backoff=backoff, exceptions=exceptions)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator

@@ -1,10 +1,17 @@
 """
 统一配置管理
+支持多环境配置 (development/testing/production)
 """
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict, Any
+
+
+# 环境类型
+ENV_DEVELOPMENT = "development"
+ENV_TESTING = "testing"
+ENV_PRODUCTION = "production"
 
 
 @dataclass
@@ -62,32 +69,78 @@ class AppConfig:
     # 目录配置
     upload_dir: str = "uploads"
     log_level: str = "INFO"
+    log_format: str = "text"  # text 或 json
+    
+    # 环境
+    env: str = ENV_DEVELOPMENT
+    
+    # Redis (可选)
+    redis_url: str = ""
+    
+    @property
+    def is_production(self) -> bool:
+        return self.env == ENV_PRODUCTION
+    
+    @property
+    def is_development(self) -> bool:
+        return self.env == ENV_DEVELOPMENT
+    
+    @property
+    def is_testing(self) -> bool:
+        return self.env == ENV_TESTING
 
 
-def load_config() -> AppConfig:
+def load_config(env: str = None) -> AppConfig:
     """
     从环境变量加载配置
+    
+    Args:
+        env: 环境名称，默认从 FLASK_ENV 或 APP_ENV 读取
     """
     config = AppConfig()
     
+    # 环境
+    if env is None:
+        env = os.environ.get("FLASK_ENV") or os.environ.get("APP_ENV", ENV_DEVELOPMENT)
+    config.env = env
+    
     # 服务器配置
     config.server.port = int(os.environ.get("PORT", 3003))
-    config.server.debug = os.environ.get("DEBUG", "").lower() == "true"
+    config.server.debug = os.environ.get("FLASK_DEBUG", "0") == "1" or env == ENV_DEVELOPMENT
     
-    # AI 配置
-    config.ai.api_base = os.environ.get("GEMINI_API_BASE", "")
-    config.ai.api_key = os.environ.get("GEMINI_API_KEY", "")
-    config.ai.model = os.environ.get("GEMINI_MODEL", "deepseek-r1-search")
+    # AI 配置 (支持新旧环境变量名)
+    config.ai.api_base = os.environ.get("AI_API_BASE") or os.environ.get("GEMINI_API_BASE", "")
+    config.ai.api_key = os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+    config.ai.model = os.environ.get("AI_MODEL") or os.environ.get("GEMINI_MODEL", "deepseek-r1-search")
     
     # ASR 配置
     config.asr.tencent_secret_id = os.environ.get("TENCENT_SECRET_ID", "")
     config.asr.tencent_secret_key = os.environ.get("TENCENT_SECRET_KEY", "")
     config.asr.tencent_appid = os.environ.get("TENCENT_APPID", "")
     
-    # 日志级别
-    config.log_level = os.environ.get("LOG_LEVEL", "INFO")
+    # 日志配置
+    config.log_level = os.environ.get("LOG_LEVEL", _get_default_log_level(env))
+    config.log_format = os.environ.get("LOG_FORMAT", _get_default_log_format(env))
+    
+    # Redis
+    config.redis_url = os.environ.get("REDIS_URL", "")
     
     return config
+
+
+def _get_default_log_level(env: str) -> str:
+    """根据环境获取默认日志级别"""
+    defaults = {
+        ENV_DEVELOPMENT: "DEBUG",
+        ENV_TESTING: "INFO",
+        ENV_PRODUCTION: "WARNING",
+    }
+    return defaults.get(env, "INFO")
+
+
+def _get_default_log_format(env: str) -> str:
+    """根据环境获取默认日志格式"""
+    return "json" if env == ENV_PRODUCTION else "text"
 
 
 def validate_config(config: AppConfig) -> list:

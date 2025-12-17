@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # 主应用服务
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edge-tts-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3003}:3003"
+    environment:
+      - PORT=3003
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      - LOG_FILE=/app/logs/app.log
+      - AI_API_BASE=${AI_API_BASE:-${GEMINI_API_BASE}}
+      - AI_API_KEY=${AI_API_KEY:-${GEMINI_API_KEY}}
+      - AI_MODEL=${AI_MODEL:-${GEMINI_MODEL:-deepseek-r1-search}}
+      - TENCENT_SECRET_ID=${TENCENT_SECRET_ID}
+      - TENCENT_SECRET_KEY=${TENCENT_SECRET_KEY}
+      - TENCENT_APPID=${TENCENT_APPID}
+      - AUTH_DB_PATH=/app/data/auth.db
+      - REDIS_URL=${REDIS_URL:-}
+    volumes:
+      - ./data:/app/data          # 数据持久化
+      - ./logs:/app/logs          # 日志持久化
+      - ./tts:/app/tts            # TTS 输出
+      - ./uploads:/app/uploads    # 上传文件
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - edge-tts-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Redis 缓存和会话存储
+  redis:
+    image: redis:7-alpine
+    container_name: edge-tts-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - edge-tts-network
+
+networks:
+  edge-tts-network:
+    driver: bridge
+
+volumes:
+  redis-data:

@@ -10,6 +10,7 @@ from openai import OpenAI
 from ..config import get_config
 from ..utils.logger import get_ai_logger
 from ..exceptions import AIError
+from .session_store import get_session_store
 
 logger = get_ai_logger()
 
@@ -26,8 +27,8 @@ class AIService:
         self.model = config.ai.model
         self.max_history = config.ai.max_history
         
-        # 对话历史 {session_id: [messages]}
-        self._history = {}
+        # 使用会话存储（支持内存/Redis）
+        self._session_store = get_session_store()
     
     def get_system_prompt(self, short: bool = False) -> str:
         """获取带时间上下文的 system prompt"""
@@ -81,7 +82,7 @@ IMPORTANT RULES:
 
     def _get_messages(self, session_id: str, question: str, short: bool = False) -> list:
         """构建消息列表（含历史）"""
-        history = self._history.get(session_id, [])
+        history = self._session_store.get(session_id) or []
         
         messages = [{'role': 'system', 'content': self.get_system_prompt(short)}]
         messages.extend(history)
@@ -91,17 +92,20 @@ IMPORTANT RULES:
     
     def _save_history(self, session_id: str, question: str, answer: str):
         """保存对话历史"""
-        if session_id not in self._history:
-            self._history[session_id] = []
-        
-        history = self._history[session_id]
-        history.append({'role': 'user', 'content': question})
-        history.append({'role': 'assistant', 'content': answer})
-        
-        # 只保留最近 N 轮
         max_messages = self.max_history * 2
-        if len(history) > max_messages:
-            self._history[session_id] = history[-max_messages:]
+        
+        # 追加用户消息
+        self._session_store.append(
+            session_id, 
+            {'role': 'user', 'content': question},
+            max_messages=max_messages
+        )
+        # 追加助手消息
+        self._session_store.append(
+            session_id,
+            {'role': 'assistant', 'content': answer},
+            max_messages=max_messages
+        )
     
     def ask(self, question: str, session_id: str = "default", short: bool = False) -> str:
         """
@@ -179,9 +183,8 @@ IMPORTANT RULES:
     
     def clear_history(self, session_id: str):
         """清除会话历史"""
-        if session_id in self._history:
-            del self._history[session_id]
-            logger.info(f"[AI] 清除历史 | session={session_id}")
+        self._session_store.delete(session_id)
+        logger.info(f"[AI] 清除历史 | session={session_id}")
 
 
 # 全局实例

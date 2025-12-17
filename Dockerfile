@@ -1,26 +1,62 @@
-# 使用官方 Python 3.9 轻量镜像作为基础
-FROM python:3.9-slim
+# Edge TTS Web Interface
+# 多阶段构建，优化镜像大小
 
-# 设置工作目录
+# ==================== 构建阶段 ====================
+FROM python:3.11-slim as builder
+
 WORKDIR /app
 
-# 复制依赖文件并安装
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 安装系统依赖（edge-tts 需要 ffmpeg 支持音频处理）
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
+# 安装构建依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制项目文件到容器
-COPY . /app
+# 复制依赖文件
+COPY requirements.txt pyproject.toml ./
 
-# 创建存储生成音频文件的目录（可选，代码中已有动态创建逻辑）
-RUN mkdir -p /app/tts
+# 创建虚拟环境并安装依赖
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 暴露端口 2024
-EXPOSE 2024
+# ==================== 运行阶段 ====================
+FROM python:3.11-slim
 
-# 运行 Flask 应用
+WORKDIR /app
+
+# 安装运行时依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 从构建阶段复制虚拟环境
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# 复制应用代码
+COPY src/ ./src/
+COPY static/ ./static/
+COPY templates/ ./templates/
+COPY tencent_asr/ ./tencent_asr/
+COPY app.py api_mcu.py api_wechat.py api_websocket.py api_websocket_native.py ./
+
+# 创建必要目录
+RUN mkdir -p /app/data /app/logs /app/tts /app/uploads
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PORT=3003
+
+# 暴露端口
+EXPOSE 3003
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3003/health || exit 1
+
+# 运行应用
 CMD ["python", "app.py"]

@@ -10,10 +10,12 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 设置测试环境变量
-os.environ.setdefault('GEMINI_API_BASE', 'http://test.api')
-os.environ.setdefault('GEMINI_API_KEY', 'test_key')
-os.environ.setdefault('GEMINI_MODEL', 'test-model')
+os.environ.setdefault('APP_ENV', 'testing')
+os.environ.setdefault('AI_API_BASE', 'http://test.api')
+os.environ.setdefault('AI_API_KEY', 'test_key')
+os.environ.setdefault('AI_MODEL', 'test-model')
 os.environ.setdefault('LOG_LEVEL', 'WARNING')
+os.environ.setdefault('LOG_FORMAT', 'text')
 
 
 @pytest.fixture

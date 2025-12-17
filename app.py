@@ -467,7 +467,11 @@ def ask_ai():
                     stream=True
                 )
                 for chunk in ai_response:
-                    content = chunk.choices[0].delta.content
+                    # 安全检查
+                    if chunk.choices and len(chunk.choices) > 0:
+                        content = chunk.choices[0].delta.content
+                    else:
+                        content = None
                     if content:
                         yield (b'--frame\r\n'
                                b'Content-Type: text/plain; charset=utf-8\r\n\r\n' + content.encode('utf-8') + b'\r\n')
