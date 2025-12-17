@@ -48,7 +48,7 @@ class ASRConfig:
 @dataclass
 class TTSConfig:
     """语音合成配置"""
-    output_dir: str = "tts"
+    output_dir: str = "data/tts"
     default_voice: str = "xiaoxiao"
     voices: dict = field(default_factory=lambda: {
         "xiaoxiao": "zh-CN-XiaoxiaoNeural",
@@ -67,7 +67,8 @@ class AppConfig:
     tts: TTSConfig = field(default_factory=TTSConfig)
     
     # 目录配置
-    upload_dir: str = "uploads"
+    upload_dir: str = "data/uploads"
+    log_dir: str = "data/logs"
     log_level: str = "INFO"
     log_format: str = "text"  # text 或 json
     

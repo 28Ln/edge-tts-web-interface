@@ -74,19 +74,21 @@ def create_app() -> Flask:
     register_error_handlers(app)
     
     # 注册蓝图
-    from .mcu import mcu_bp
     from .health import health_bp
     from .admin import admin_bp
     from .openapi import openapi_bp
-    from .wechat import wechat_bp
     from .dashboard import dashboard_bp
     
-    app.register_blueprint(mcu_bp)
-    app.register_blueprint(health_bp)
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(openapi_bp)
-    app.register_blueprint(wechat_bp)
-    app.register_blueprint(dashboard_bp)
+    # v1 API (兼容旧版)
+    from .v1.mcu import mcu_bp
+    from .v1.wechat import wechat_bp
+    
+    app.register_blueprint(mcu_bp)        # /mcu/*
+    app.register_blueprint(wechat_bp)     # /wechat/*
+    app.register_blueprint(health_bp)     # /health/*
+    app.register_blueprint(admin_bp)      # /admin/*
+    app.register_blueprint(openapi_bp)    # /docs, /openapi.json
+    app.register_blueprint(dashboard_bp)  # /dashboard/*
     
     # 注册 v2 API
     from .v2 import register_v2_routes

@@ -1,5 +1,7 @@
 """
-微信公众号/小程序 API
+微信公众号/小程序 API v1
+
+注意: 此为 v1 API
 """
 
 import os
@@ -10,20 +12,20 @@ import subprocess
 import xml.etree.ElementTree as ET
 from flask import Blueprint, request, jsonify
 
-from ..services.ai_service import get_ai_service
-from ..services.asr_service import get_asr_service
-from ..utils.logger import get_api_logger
-from ..exceptions import ValidationError
+from ...services.ai_service import get_ai_service
+from ...services.asr_service import get_asr_service
+from ...utils.logger import get_api_logger
+from ...exceptions import ValidationError
 
 logger = get_api_logger()
 
-wechat_bp = Blueprint('wechat', __name__, url_prefix='/wechat')
+wechat_bp = Blueprint('wechat_v1', __name__, url_prefix='/wechat')
 
 # 微信配置
 WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "your_wechat_token")
 
 
-def verify_wechat_signature(signature, timestamp, nonce):
+def verify_wechat_signature(signature: str, timestamp: str, nonce: str) -> bool:
     """验证微信签名"""
     tmp_list = sorted([WECHAT_TOKEN, timestamp, nonce])
     tmp_str = ''.join(tmp_list)
@@ -31,7 +33,7 @@ def verify_wechat_signature(signature, timestamp, nonce):
     return tmp_str == signature
 
 
-def convert_amr_to_wav(amr_data):
+def convert_amr_to_wav(amr_data: bytes) -> tuple:
     """将微信 AMR 音频转换为 WAV"""
     temp_amr = None
     temp_wav = None
@@ -63,7 +65,7 @@ def convert_amr_to_wav(amr_data):
             os.unlink(temp_wav.name)
 
 
-def make_text_reply(from_user, to_user, content):
+def make_text_reply(from_user: str, to_user: str, content: str) -> str:
     """生成微信文本回复 XML"""
     return f"""<xml>
 <ToUserName><![CDATA[{from_user}]]></ToUserName>

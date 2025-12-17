@@ -24,10 +24,17 @@ env/
 logs/
 
 # Generated files
-tts/*.mp3
-tts/*.wav
-uploads/*
-!uploads/.gitkeep
+data/tts/*.mp3
+data/tts/*.wav
+data/uploads/*
+data/logs/*
+!data/tts/.gitkeep
+!data/uploads/.gitkeep
+!data/logs/.gitkeep
+
+# Legacy directories (to be removed)
+tts/
+uploads/
 
 # Test coverage
 .coverage

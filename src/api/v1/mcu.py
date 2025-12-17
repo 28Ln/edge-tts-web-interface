@@ -1,21 +1,21 @@
 """
-MCU API 路由
+MCU API v1 路由
 精简版 API，适用于嵌入式设备
+
+注意: 此为 v1 API，建议迁移到 /v2/mcu/* (带认证和计费)
 """
 
-from flask import Blueprint, request, jsonify, Response, send_file, g
+from flask import Blueprint, request, jsonify, Response, send_file
 
-from ..services.ai_service import get_ai_service
-from ..services.asr_service import get_asr_service
-from ..services.tts_service import get_tts_service
-from ..utils.logger import get_api_logger
-from ..exceptions import ValidationError, ASRError
-from ..auth.api_key import require_api_key, optional_api_key
-from ..auth.quota import check_quota, record_usage
+from ...services.ai_service import get_ai_service
+from ...services.asr_service import get_asr_service
+from ...services.tts_service import get_tts_service
+from ...utils.logger import get_api_logger
+from ...exceptions import ValidationError, ASRError
 
 logger = get_api_logger()
 
-mcu_bp = Blueprint('mcu', __name__, url_prefix='/mcu')
+mcu_bp = Blueprint('mcu_v1', __name__, url_prefix='/mcu')
 
 
 # ==================== 基础接口 ====================
