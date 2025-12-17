@@ -82,36 +82,25 @@ class VoskEngine(ASREngine):
 class TencentEngine(ASREngine):
     """腾讯云 ASR 引擎"""
     
-    def __init__(self, secret_id: str, secret_key: str, appid: str):
-        self.secret_id = secret_id
-        self.secret_key = secret_key
-        self.appid = appid
+    def __init__(self):
         self._client = None
     
     def is_available(self) -> bool:
-        return bool(self.secret_id and self.secret_key and self.appid)
-    
-    def _get_client(self):
         if self._client is None:
-            # 动态导入，避免未安装时报错
-            import sys
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tencent_asr'))
-            from asr_client import TencentASR
+            from .asr.tencent import TencentASR
             self._client = TencentASR()
-        return self._client
+        return self._client.is_available()
     
     def recognize(self, audio_data: bytes) -> str:
         if not self.is_available():
             raise ASRError("腾讯云 ASR 未配置")
         
-        # 保存临时文件
         temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
         try:
             temp_file.write(audio_data)
             temp_file.close()
             
-            client = self._get_client()
-            result = client.recognize(temp_file.name, voice_format="wav", engine="16k_zh")
+            result = self._client.recognize(temp_file.name, voice_format="wav", engine="16k_zh")
             
             if result["success"]:
                 return result["text"]
@@ -131,11 +120,7 @@ class ASRService:
         # 初始化引擎
         self.engines = {
             "vosk": VoskEngine(config.asr.vosk_model_path),
-            "tencent": TencentEngine(
-                config.asr.tencent_secret_id,
-                config.asr.tencent_secret_key,
-                config.asr.tencent_appid,
-            ),
+            "tencent": TencentEngine(),
         }
         self.default_engine = config.asr.default_engine
     

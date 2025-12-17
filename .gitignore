@@ -5,15 +5,13 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.eggs/
 
 # Virtual environment
 venv/
 env/
 .venv/
-
-# Flask
-instance/
-.webassets-cache
+.env
 
 # IDE
 .idea/
@@ -31,36 +29,27 @@ tts/*.wav
 uploads/*
 !uploads/.gitkeep
 
-# Test files
-test_*.wav
-test_*.mp3
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
 
 # Large files (download separately)
 vosk-model-*/
 ffmpeg/
 
 # Environment variables (contains secrets)
-.env
 !.env.example
-
-# Tencent ASR config (contains secrets)
-tencent_asr/config.py
-!tencent_asr/config.example.py
 
 # OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
 
 # Database
 data/*.db
 *.sqlite
 *.sqlite3
+
+# Temporary files
+*.tmp
+*.temp

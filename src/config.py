@@ -106,7 +106,7 @@ def load_config(env: str = None) -> AppConfig:
     
     # 服务器配置
     config.server.port = int(os.environ.get("PORT", 3003))
-    config.server.debug = os.environ.get("FLASK_DEBUG", "0") == "1" or env == ENV_DEVELOPMENT
+    config.server.debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     
     # AI 配置 (支持新旧环境变量名)
     config.ai.api_base = os.environ.get("AI_API_BASE") or os.environ.get("GEMINI_API_BASE", "")
