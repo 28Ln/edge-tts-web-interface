@@ -69,18 +69,22 @@ def main():
     
     # 打印启动信息
     print("=" * 50)
-    print("Edge TTS Web Interface")
+    print("Edge TTS Web Interface v2.0")
     print("=" * 50)
     print(f"环境: {config.env}")
     print(f"端口: {config.server.port}")
     print(f"本地访问: http://127.0.0.1:{config.server.port}")
     print("-" * 50)
     print("API 端点:")
-    print(f"  MCU API:    /mcu/...")
+    print(f"  MCU API v1: /mcu/...")
     print(f"  MCU API v2: /v2/mcu/... (带认证)")
     print(f"  微信 API:   /wechat/...")
     print(f"  健康检查:   /health")
     print(f"  API 文档:   /docs")
+    print("-" * 50)
+    print("管理面板:")
+    print(f"  Dashboard:  /dashboard")
+    print(f"  默认密码:   admin123 (请修改 ADMIN_PASSWORD)")
     print("=" * 50)
     
     # 启动服务
