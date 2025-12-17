@@ -3,13 +3,15 @@ MCU API 路由
 精简版 API，适用于嵌入式设备
 """
 
-from flask import Blueprint, request, jsonify, Response, send_file
+from flask import Blueprint, request, jsonify, Response, send_file, g
 
 from ..services.ai_service import get_ai_service
 from ..services.asr_service import get_asr_service
 from ..services.tts_service import get_tts_service
 from ..utils.logger import get_api_logger
 from ..exceptions import ValidationError, ASRError
+from ..auth.api_key import require_api_key, optional_api_key
+from ..auth.quota import check_quota, record_usage
 
 logger = get_api_logger()
 

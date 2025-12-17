@@ -57,8 +57,10 @@ def create_app() -> Flask:
     # 注册蓝图
     from .mcu import mcu_bp
     from .health import health_bp
+    from .admin import admin_bp
     
     app.register_blueprint(mcu_bp)
     app.register_blueprint(health_bp)
+    app.register_blueprint(admin_bp)
     
     return app
