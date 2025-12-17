@@ -2,35 +2,50 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+dist/
+build/
 
 # Virtual environment
 venv/
 env/
+.venv/
 
 # Flask
 instance/
 .webassets-cache
 
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
 # Logs
 *.log
+logs/
 
-# Generated audio files
+# Generated files
 tts/*.mp3
 tts/*.wav
-uploads/*.wav
-uploads/*.mp3
+uploads/*
+!uploads/.gitkeep
+
+# Test files
 test_*.wav
 test_*.mp3
 
-# Large model files (download separately)
+# Large files (download separately)
 vosk-model-*/
 ffmpeg/
 
 # Environment variables (contains secrets)
 .env
+!.env.example
 
-# Config template
-# tencent_asr/config.py
+# Tencent ASR config (contains secrets)
+tencent_asr/config.py
+!tencent_asr/config.example.py
 
 # OS generated files
 .DS_Store
@@ -40,3 +55,7 @@ ffmpeg/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
