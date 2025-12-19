@@ -34,9 +34,7 @@ class TencentASR:
     
     def is_available(self) -> bool:
         """检查是否可用"""
-        available = bool(self.secret_id and self.secret_key and self.appid)
-        print(f"[TencentASR] is_available: secret_id={bool(self.secret_id)}, secret_key={bool(self.secret_key)}, appid={bool(self.appid)} => {available}", flush=True)
-        return available
+        return bool(self.secret_id and self.secret_key and self.appid)
     
     def _get_signature(self, params, timestamp, date):
         """生成签名"""

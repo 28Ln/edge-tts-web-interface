@@ -157,7 +157,6 @@ class TencentEngine(ASREngine):
         self._client = None
     
     def is_available(self) -> bool:
-        print(f"[TencentEngine] is_available called, _client={self._client}", flush=True)
         if self._client is None:
             from .asr.tencent import TencentASR
             self._client = TencentASR()
@@ -210,7 +209,6 @@ class ASRService:
     
     def __init__(self) -> None:
         config = get_config()
-        print(f"[ASRService] Initializing with tencent_secret_id={config.asr.tencent_secret_id[:10] if config.asr.tencent_secret_id else 'EMPTY'}...", flush=True)
         
         # 初始化引擎
         self.engines = {
@@ -407,6 +405,5 @@ def get_asr_service() -> ASRService:
     """
     global _asr_service
     if _asr_service is None:
-        print(f"[get_asr_service] Creating new ASRService instance", flush=True)
         _asr_service = ASRService()
     return _asr_service

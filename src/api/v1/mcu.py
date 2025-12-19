@@ -35,10 +35,8 @@ def ping():
 @mcu_bp.route('/status', methods=['GET'])
 def status():
     """获取服务状态"""
-    print("[MCU] status endpoint called", flush=True)
     asr_service = get_asr_service()
     engines = asr_service.get_available_engines()
-    print(f"[MCU] asr_engines: {engines}", flush=True)
     
     return jsonify({
         "success": True,
