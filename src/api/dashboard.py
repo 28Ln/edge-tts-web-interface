@@ -64,53 +64,75 @@ def logout():
 @login_required
 def index():
     """仪表盘首页"""
-    db = get_db()
+    import time
+    start_time = time.time()
     
-    # 统计数据
-    with db.get_connection() as conn:
-        # 用户总数
-        user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+    try:
+        logger.info("[DASHBOARD] 访问首页")
         
-        # 活跃用户数
-        active_users = conn.execute('SELECT COUNT(*) FROM users WHERE is_active = 1').fetchone()[0]
+        db = get_db()
         
-        # API Key 总数
-        key_count = conn.execute('SELECT COUNT(*) FROM api_keys WHERE is_active = 1').fetchone()[0]
-        
-        # 今日请求数
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_requests = conn.execute(
-            'SELECT COALESCE(SUM(total_requests), 0) FROM daily_usage WHERE date = ?',
-            (today,)
-        ).fetchone()[0]
-        
-        # 最近7天请求趋势
-        week_data = []
-        for i in range(6, -1, -1):
-            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
-            count = conn.execute(
+        # 统计数据
+        with db.get_connection() as conn:
+            # 用户总数
+            user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+            
+            # 活跃用户数
+            active_users = conn.execute('SELECT COUNT(*) FROM users WHERE is_active = 1').fetchone()[0]
+            
+            # API Key 总数
+            key_count = conn.execute('SELECT COUNT(*) FROM api_keys WHERE is_active = 1').fetchone()[0]
+            
+            # 今日请求数
+            today = datetime.now().strftime('%Y-%m-%d')
+            today_requests = conn.execute(
                 'SELECT COALESCE(SUM(total_requests), 0) FROM daily_usage WHERE date = ?',
-                (date,)
+                (today,)
             ).fetchone()[0]
-            week_data.append({'date': date[-5:], 'count': count})  # MM-DD 格式
+            
+            # 最近7天请求趋势
+            week_data = []
+            for i in range(6, -1, -1):
+                date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+                count = conn.execute(
+                    'SELECT COALESCE(SUM(total_requests), 0) FROM daily_usage WHERE date = ?',
+                    (date,)
+                ).fetchone()[0]
+                week_data.append({'date': date[-5:], 'count': count})  # MM-DD 格式
+            
+            # 最近活跃用户
+            recent_users = conn.execute('''
+                SELECT u.username, u.email, COALESCE(d.total_requests, 0) as today_requests
+                FROM users u
+                LEFT JOIN daily_usage d ON u.id = d.user_id AND d.date = ?
+                ORDER BY today_requests DESC
+                LIMIT 5
+            ''', (today,)).fetchall()
         
-        # 最近活跃用户
-        recent_users = conn.execute('''
-            SELECT u.username, u.email, COALESCE(d.total_requests, 0) as today_requests
-            FROM users u
-            LEFT JOIN daily_usage d ON u.id = d.user_id AND d.date = ?
-            ORDER BY today_requests DESC
-            LIMIT 5
-        ''', (today,)).fetchall()
-    
-    return render_template('dashboard/index.html',
-        user_count=user_count,
-        active_users=active_users,
-        key_count=key_count,
-        today_requests=today_requests,
-        week_data=week_data,
-        recent_users=recent_users
-    )
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[DASHBOARD] 首页加载完成 | duration={duration:.2f}ms")
+        
+        return render_template('dashboard/index.html',
+            user_count=user_count,
+            active_users=active_users,
+            key_count=key_count,
+            today_requests=today_requests,
+            week_data=week_data,
+            recent_users=recent_users
+        )
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[DASHBOARD] 首页加载失败 | error={e} | duration={duration:.2f}ms", exc_info=True)
+        flash('加载数据失败，请稍后重试', 'error')
+        return render_template('dashboard/index.html',
+            user_count=0,
+            active_users=0,
+            key_count=0,
+            today_requests=0,
+            week_data=[],
+            recent_users=[]
+        )
 
 
 # ==================== 用户管理 ====================
@@ -141,24 +163,53 @@ def users():
 def create_user():
     """创建用户"""
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip()
-        daily_requests = int(request.form.get('daily_requests', 1000))
-        daily_tokens = int(request.form.get('daily_tokens', 100000))
-        daily_audio_seconds = int(request.form.get('daily_audio_seconds', 600))
-        
-        if not username or not email:
-            flash('用户名和邮箱不能为空', 'error')
-            return redirect(url_for('dashboard.create_user'))
-        
-        db = get_db()
-        
-        # 检查重复
-        if db.get_user_by_username(username):
-            flash('用户名已存在', 'error')
-            return redirect(url_for('dashboard.create_user'))
+        import re
+        import time
+        start_time = time.time()
         
         try:
+            username = request.form.get('username', '').strip()
+            email = request.form.get('email', '').strip()
+            
+            # 验证必填字段
+            if not username or not email:
+                flash('用户名和邮箱不能为空', 'error')
+                return redirect(url_for('dashboard.create_user'))
+            
+            # 验证用户名格式
+            if not re.match(r'^[a-zA-Z0-9_]{3,30}$', username):
+                flash('用户名格式错误，仅支持字母数字下划线，3-30字符', 'error')
+                return redirect(url_for('dashboard.create_user'))
+            
+            # 验证邮箱格式
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, email):
+                flash('邮箱格式错误', 'error')
+                return redirect(url_for('dashboard.create_user'))
+            
+            # 验证配额参数
+            try:
+                daily_requests = int(request.form.get('daily_requests', 1000))
+                daily_tokens = int(request.form.get('daily_tokens', 100000))
+                daily_audio_seconds = int(request.form.get('daily_audio_seconds', 600))
+                
+                if daily_requests < 0 or daily_tokens < 0 or daily_audio_seconds < 0:
+                    flash('配额参数必须为非负整数', 'error')
+                    return redirect(url_for('dashboard.create_user'))
+            except ValueError:
+                flash('配额参数必须为整数', 'error')
+                return redirect(url_for('dashboard.create_user'))
+            
+            logger.info(f"[DASHBOARD] 创建用户请求 | username={username} | email={email}")
+            
+            db = get_db()
+            
+            # 检查重复
+            if db.get_user_by_username(username):
+                logger.warning(f"[DASHBOARD] 用户名已存在 | username={username}")
+                flash('用户名已存在', 'error')
+                return redirect(url_for('dashboard.create_user'))
+            
             user_id = db.create_user(
                 username=username,
                 email=email,
@@ -171,11 +222,14 @@ def create_user():
             api_key = generate_api_key()
             db.create_api_key(user_id, api_key, name='default')
             
-            logger.info(f"创建用户成功: {username}")
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[DASHBOARD] 创建用户成功 | username={username} | id={user_id} | duration={duration:.2f}ms")
             flash(f'用户创建成功！API Key: {api_key}', 'success')
             return redirect(url_for('dashboard.user_detail', user_id=user_id))
+            
         except Exception as e:
-            logger.error(f"创建用户失败: {e}")
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[DASHBOARD] 创建用户失败 | error={e} | duration={duration:.2f}ms", exc_info=True)
             flash(f'创建失败: {e}', 'error')
     
     return render_template('dashboard/user_form.html', user=None)
@@ -221,32 +275,56 @@ def user_detail(user_id):
 @login_required
 def edit_user(user_id):
     """编辑用户"""
+    import time
+    
     db = get_db()
     user = db.get_user(user_id)
     
     if not user:
+        logger.warning(f"[DASHBOARD] 用户不存在 | user_id={user_id}")
         flash('用户不存在', 'error')
         return redirect(url_for('dashboard.users'))
     
     if request.method == 'POST':
-        daily_requests = int(request.form.get('daily_requests', 1000))
-        daily_tokens = int(request.form.get('daily_tokens', 100000))
-        daily_audio_seconds = int(request.form.get('daily_audio_seconds', 600))
-        is_active = request.form.get('is_active') == 'on'
+        start_time = time.time()
         
-        with db.get_connection() as conn:
-            conn.execute('''
-                UPDATE users SET 
-                    daily_requests = ?,
-                    daily_tokens = ?,
-                    daily_audio_seconds = ?,
-                    is_active = ?
-                WHERE id = ?
-            ''', (daily_requests, daily_tokens, daily_audio_seconds, is_active, user_id))
-        
-        logger.info(f"更新用户配置: {user.username}")
-        flash('用户配置已更新', 'success')
-        return redirect(url_for('dashboard.user_detail', user_id=user_id))
+        try:
+            # 验证配额参数
+            try:
+                daily_requests = int(request.form.get('daily_requests', 1000))
+                daily_tokens = int(request.form.get('daily_tokens', 100000))
+                daily_audio_seconds = int(request.form.get('daily_audio_seconds', 600))
+                
+                if daily_requests < 0 or daily_tokens < 0 or daily_audio_seconds < 0:
+                    flash('配额参数必须为非负整数', 'error')
+                    return redirect(url_for('dashboard.edit_user', user_id=user_id))
+            except ValueError:
+                flash('配额参数必须为整数', 'error')
+                return redirect(url_for('dashboard.edit_user', user_id=user_id))
+            
+            is_active = request.form.get('is_active') == 'on'
+            
+            logger.info(f"[DASHBOARD] 更新用户配置 | username={user.username} | user_id={user_id}")
+            
+            with db.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET 
+                        daily_requests = ?,
+                        daily_tokens = ?,
+                        daily_audio_seconds = ?,
+                        is_active = ?
+                    WHERE id = ?
+                ''', (daily_requests, daily_tokens, daily_audio_seconds, is_active, user_id))
+            
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[DASHBOARD] 更新用户配置成功 | username={user.username} | duration={duration:.2f}ms")
+            flash('用户配置已更新', 'success')
+            return redirect(url_for('dashboard.user_detail', user_id=user_id))
+            
+        except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[DASHBOARD] 更新用户配置失败 | user_id={user_id} | error={e} | duration={duration:.2f}ms", exc_info=True)
+            flash(f'更新失败: {e}', 'error')
     
     return render_template('dashboard/user_form.html', user=user)
 

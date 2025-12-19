@@ -3,6 +3,10 @@
 支持多环境配置 (development/testing/production)
 """
 
+# 在任何其他操作之前加载 .env
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 import os
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
@@ -28,8 +32,11 @@ class AIConfig:
     api_base: str = ""
     api_key: str = ""
     model: str = "deepseek-r1-search"
-    timeout: int = 60
+    timeout: int = 30  # AI 服务超时（秒）
+    stream_timeout: int = 60  # 流式响应超时（秒）
     max_history: int = 2  # 保留最近几轮对话
+    max_retries: int = 3  # 最大重试次数
+    retry_delay: float = 1.0  # 重试延迟（秒）
 
 
 @dataclass
@@ -43,6 +50,11 @@ class ASRConfig:
     vosk_model_path: str = "vosk-model-small-cn-0.22"
     # 默认引擎
     default_engine: str = "tencent"
+    # 超时配置
+    timeout: int = 60  # ASR 服务超时（秒）
+    convert_timeout: int = 30  # 音频转换超时（秒）
+    max_retries: int = 2  # 最大重试次数
+    retry_delay: float = 0.5  # 重试延迟（秒）
 
 
 @dataclass
@@ -56,6 +68,11 @@ class TTSConfig:
         "xiaoyi": "zh-CN-XiaoyiNeural",
         "yunjian": "zh-CN-YunjianNeural",
     })
+    # 超时配置
+    timeout: int = 30  # TTS 服务超时（秒）
+    ffmpeg_timeout: int = 10  # FFmpeg 转换超时（秒）
+    max_retries: int = 2  # 最大重试次数
+    retry_delay: float = 0.5  # 重试延迟（秒）
 
 
 @dataclass

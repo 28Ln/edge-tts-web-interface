@@ -59,35 +59,60 @@ def register_mcu_routes(parent_bp: Blueprint):
     @check_quota('requests')
     def stt():
         """语音转文字 v2"""
-        engine = request.args.get('engine', 'tencent')
-        audio_format = request.args.get('format', 'wav')
+        import time
+        start_time = time.time()
         
-        # 获取音频数据
-        if request.content_type and 'multipart/form-data' in request.content_type:
-            if 'audio' not in request.files:
-                raise ValidationError("未找到音频文件")
-            audio_data = request.files['audio'].read()
-        else:
-            audio_data = request.get_data()
-        
-        if not audio_data:
-            raise ValidationError("音频数据为空")
-        
-        logger.info(f"[STT v2] 请求 | user={g.current_user.username} | engine={engine}")
-        
-        # 识别
-        asr_service = get_asr_service()
-        text = asr_service.recognize(audio_data, engine=engine, audio_format=audio_format)
-        
-        # 记录用量
-        audio_seconds = len(audio_data) / (16000 * 2)
-        record_usage('/v2/mcu/stt', audio_seconds=audio_seconds)
-        
-        return jsonify(make_response({
-            "text": text,
-            "engine": engine,
-            "audio_duration": round(audio_seconds, 2),
-        }))
+        try:
+            engine = request.args.get('engine', 'tencent')
+            audio_format = request.args.get('format', 'wav')
+            
+            # 获取音频数据
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                if 'audio' not in request.files:
+                    raise ValidationError("未找到音频文件")
+                audio_data = request.files['audio'].read()
+            else:
+                audio_data = request.get_data()
+            
+            if not audio_data:
+                raise ValidationError("音频数据为空")
+            
+            # 验证音频大小
+            MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
+            if len(audio_data) > MAX_AUDIO_SIZE:
+                raise ValidationError(f"音频文件过大，最大支持 {MAX_AUDIO_SIZE // 1024 // 1024}MB")
+            
+            logger.info(f"[STT v2] 开始处理 | user={g.current_user.username} | engine={engine} | format={audio_format} | size={len(audio_data)}")
+            
+            # 识别
+            asr_service = get_asr_service()
+            text = asr_service.recognize(audio_data, engine=engine, audio_format=audio_format)
+            
+            # 记录用量
+            audio_seconds = len(audio_data) / (16000 * 2)
+            record_usage('/v2/mcu/stt', audio_seconds=audio_seconds)
+            
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[STT v2] 处理完成 | user={g.current_user.username} | text_length={len(text)} | duration={duration:.2f}ms")
+            
+            return jsonify(make_response({
+                "text": text,
+                "engine": engine,
+                "audio_duration": round(audio_seconds, 2),
+            }))
+            
+        except ValidationError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.warning(f"[STT v2] 验证失败 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms")
+            raise
+        except ASRError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[STT v2] ASR 错误 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms")
+            raise
+        except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[STT v2] 未知错误 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms", exc_info=True)
+            raise
 
     # ==================== AI 问答 ====================
 
@@ -96,32 +121,59 @@ def register_mcu_routes(parent_bp: Blueprint):
     @check_quota('requests')
     def ask():
         """AI 问答 v2"""
-        session_id = request.args.get('session', 'default')
+        import time
+        start_time = time.time()
         
-        if request.content_type and 'application/json' in request.content_type:
-            data = request.get_json() or {}
-            question = data.get('question', '')
-            session_id = data.get('session', session_id)
-        else:
-            question = request.get_data(as_text=True)
-        
-        if not question:
-            raise ValidationError("问题内容为空")
-        
-        logger.info(f"[ASK v2] 请求 | user={g.current_user.username} | session={session_id}")
-        
-        ai_service = get_ai_service()
-        answer = ai_service.ask(question, session_id=session_id)
-        
-        # 记录用量
-        tokens = len(question) + len(answer)
-        record_usage('/v2/mcu/ask', tokens=tokens)
-        
-        return jsonify(make_response({
-            "answer": answer,
-            "session": session_id,
-            "tokens_used": tokens,
-        }))
+        try:
+            session_id = request.args.get('session', 'default')
+            
+            # 解析请求
+            if request.content_type and 'application/json' in request.content_type:
+                try:
+                    data = request.get_json() or {}
+                    question = data.get('question', '')
+                    session_id = data.get('session', session_id)
+                except Exception as e:
+                    raise ValidationError(f"JSON 解析失败: {e}")
+            else:
+                question = request.get_data(as_text=True)
+            
+            if not question or not question.strip():
+                raise ValidationError("问题内容为空")
+            
+            question = question.strip()
+            
+            # 验证问题长度
+            MAX_QUESTION_LENGTH = 1000
+            if len(question) > MAX_QUESTION_LENGTH:
+                raise ValidationError(f"问题过长，最大支持 {MAX_QUESTION_LENGTH} 字符")
+            
+            logger.info(f"[ASK v2] 开始处理 | user={g.current_user.username} | session={session_id} | question_length={len(question)}")
+            
+            ai_service = get_ai_service()
+            answer = ai_service.ask(question, session_id=session_id)
+            
+            # 记录用量
+            tokens = len(question) + len(answer)
+            record_usage('/v2/mcu/ask', tokens=tokens)
+            
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[ASK v2] 处理完成 | user={g.current_user.username} | answer_length={len(answer)} | duration={duration:.2f}ms")
+            
+            return jsonify(make_response({
+                "answer": answer,
+                "session": session_id,
+                "tokens_used": tokens,
+            }))
+            
+        except ValidationError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.warning(f"[ASK v2] 验证失败 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms")
+            raise
+        except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[ASK v2] 未知错误 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms", exc_info=True)
+            raise
 
     @mcu_bp.route('/ask_stream', methods=['POST'])
     @require_api_key('ai')
@@ -161,29 +213,56 @@ def register_mcu_routes(parent_bp: Blueprint):
     @check_quota('requests')
     def tts():
         """文字转语音 v2"""
-        if request.method == 'GET':
-            text = request.args.get('text', '')
-            voice = request.args.get('voice', 'xiaoxiao')
-            output_format = request.args.get('format', 'wav')
-        else:
-            data = request.get_json() or {}
-            text = data.get('text', '')
-            voice = data.get('voice', 'xiaoxiao')
-            output_format = data.get('format', 'wav')
+        import time
+        start_time = time.time()
         
-        if not text:
-            raise ValidationError("文字内容为空")
-        
-        logger.info(f"[TTS v2] 请求 | user={g.current_user.username} | voice={voice}")
-        
-        tts_service = get_tts_service()
-        file_path = tts_service.synthesize(text, voice=voice, output_format=output_format)
-        
-        # 记录用量
-        record_usage('/v2/mcu/tts', characters=len(text))
-        
-        mimetype = 'audio/wav' if output_format == 'wav' else 'audio/mpeg'
-        return send_file(file_path, mimetype=mimetype)
+        try:
+            if request.method == 'GET':
+                text = request.args.get('text', '')
+                voice = request.args.get('voice', 'xiaoxiao')
+                output_format = request.args.get('format', 'wav')
+            else:
+                data = request.get_json() or {}
+                text = data.get('text', '')
+                voice = data.get('voice', 'xiaoxiao')
+                output_format = data.get('format', 'wav')
+            
+            if not text or not text.strip():
+                raise ValidationError("文字内容为空")
+            
+            text = text.strip()
+            
+            # 验证文本长度
+            MAX_TEXT_LENGTH = 5000
+            if len(text) > MAX_TEXT_LENGTH:
+                raise ValidationError(f"文本过长，最大支持 {MAX_TEXT_LENGTH} 字符")
+            
+            # 验证格式
+            if output_format not in ['wav', 'mp3']:
+                raise ValidationError(f"不支持的格式: {output_format}，仅支持 wav 或 mp3")
+            
+            logger.info(f"[TTS v2] 开始处理 | user={g.current_user.username} | voice={voice} | format={output_format} | text_length={len(text)}")
+            
+            tts_service = get_tts_service()
+            file_path = tts_service.synthesize(text, voice=voice, output_format=output_format)
+            
+            # 记录用量
+            record_usage('/v2/mcu/tts', characters=len(text))
+            
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[TTS v2] 处理完成 | user={g.current_user.username} | duration={duration:.2f}ms")
+            
+            mimetype = 'audio/wav' if output_format == 'wav' else 'audio/mpeg'
+            return send_file(file_path, mimetype=mimetype)
+            
+        except ValidationError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.warning(f"[TTS v2] 验证失败 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms")
+            raise
+        except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[TTS v2] 未知错误 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms", exc_info=True)
+            raise
 
     # ==================== 语音对话 ====================
 
@@ -192,50 +271,89 @@ def register_mcu_routes(parent_bp: Blueprint):
     @check_quota('requests')
     def voice_chat():
         """一站式语音对话 v2"""
-        engine = request.args.get('engine', 'tencent')
-        audio_format = request.args.get('format', 'wav')
-        output_type = request.args.get('out', 'text')
-        session_id = request.args.get('session', 'default')
+        import time
+        start_time = time.time()
         
-        # 获取音频
-        if request.content_type and 'multipart/form-data' in request.content_type:
-            if 'audio' not in request.files:
-                raise ValidationError("未找到音频文件")
-            audio_data = request.files['audio'].read()
-        else:
-            audio_data = request.get_data()
-        
-        if not audio_data:
-            raise ValidationError("音频数据为空")
-        
-        logger.info(f"[VOICE_CHAT v2] 请求 | user={g.current_user.username} | out={output_type}")
-        
-        # 1. 语音识别
-        asr_service = get_asr_service()
-        question = asr_service.recognize(audio_data, engine=engine, audio_format=audio_format)
-        
-        if not question:
-            raise ASRError("未识别到语音内容")
-        
-        # 2. AI 回答
-        ai_service = get_ai_service()
-        answer = ai_service.ask(question, session_id=session_id, short=True)
-        
-        # 记录用量
-        audio_seconds = len(audio_data) / (16000 * 2)
-        record_usage('/v2/mcu/voice_chat', audio_seconds=audio_seconds, tokens=len(question)+len(answer))
-        
-        # 3. 返回结果
-        if output_type == 'text':
-            return jsonify(make_response({
-                "question": question,
-                "answer": answer,
-                "session": session_id,
-            }))
-        else:
-            tts_service = get_tts_service()
-            file_path = tts_service.synthesize(answer, output_format='wav')
-            return send_file(file_path, mimetype='audio/wav')
+        try:
+            engine = request.args.get('engine', 'tencent')
+            audio_format = request.args.get('format', 'wav')
+            output_type = request.args.get('out', 'text')
+            session_id = request.args.get('session', 'default')
+            
+            # 获取音频
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                if 'audio' not in request.files:
+                    raise ValidationError("未找到音频文件")
+                audio_data = request.files['audio'].read()
+            else:
+                audio_data = request.get_data()
+            
+            if not audio_data:
+                raise ValidationError("音频数据为空")
+            
+            # 验证音频大小
+            MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
+            if len(audio_data) > MAX_AUDIO_SIZE:
+                raise ValidationError(f"音频文件过大，最大支持 {MAX_AUDIO_SIZE // 1024 // 1024}MB")
+            
+            logger.info(f"[VOICE_CHAT v2] 开始处理 | user={g.current_user.username} | engine={engine} | out={output_type} | size={len(audio_data)}")
+            
+            # 1. 语音识别
+            asr_start = time.time()
+            asr_service = get_asr_service()
+            question = asr_service.recognize(audio_data, engine=engine, audio_format=audio_format)
+            asr_duration = (time.time() - asr_start) * 1000
+            
+            if not question or not question.strip():
+                raise ASRError("未识别到语音内容")
+            
+            logger.info(f"[VOICE_CHAT v2] ASR 完成 | user={g.current_user.username} | question={question[:50]} | duration={asr_duration:.2f}ms")
+            
+            # 2. AI 回答
+            ai_start = time.time()
+            ai_service = get_ai_service()
+            answer = ai_service.ask(question, session_id=session_id, short=True)
+            ai_duration = (time.time() - ai_start) * 1000
+            
+            logger.info(f"[VOICE_CHAT v2] AI 完成 | user={g.current_user.username} | answer_length={len(answer)} | duration={ai_duration:.2f}ms")
+            
+            # 记录用量
+            audio_seconds = len(audio_data) / (16000 * 2)
+            record_usage('/v2/mcu/voice_chat', audio_seconds=audio_seconds, tokens=len(question)+len(answer))
+            
+            # 3. 返回结果
+            if output_type == 'text':
+                total_duration = (time.time() - start_time) * 1000
+                logger.info(f"[VOICE_CHAT v2] 处理完成 | user={g.current_user.username} | total_duration={total_duration:.2f}ms")
+                
+                return jsonify(make_response({
+                    "question": question,
+                    "answer": answer,
+                    "session": session_id,
+                }))
+            else:
+                tts_start = time.time()
+                tts_service = get_tts_service()
+                file_path = tts_service.synthesize(answer, output_format='wav')
+                tts_duration = (time.time() - tts_start) * 1000
+                
+                total_duration = (time.time() - start_time) * 1000
+                logger.info(f"[VOICE_CHAT v2] 处理完成 | user={g.current_user.username} | tts_duration={tts_duration:.2f}ms | total_duration={total_duration:.2f}ms")
+                
+                return send_file(file_path, mimetype='audio/wav')
+                
+        except ValidationError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.warning(f"[VOICE_CHAT v2] 验证失败 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms")
+            raise
+        except ASRError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[VOICE_CHAT v2] ASR 错误 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms")
+            raise
+        except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[VOICE_CHAT v2] 未知错误 | user={g.current_user.username} | error={e} | duration={duration:.2f}ms", exc_info=True)
+            raise
 
     # 注册到父蓝图
     parent_bp.register_blueprint(mcu_bp)

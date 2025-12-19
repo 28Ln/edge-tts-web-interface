@@ -21,18 +21,22 @@ class TencentASR:
     """腾讯云一句话语音识别"""
     
     def __init__(self):
-        config = get_config()
-        self.secret_id = config.asr.tencent_secret_id
-        self.secret_key = config.asr.tencent_secret_key
-        self.appid = config.asr.tencent_appid
+        # 直接从环境变量读取，避免配置缓存问题
+        import os
+        self.secret_id = os.environ.get("TENCENT_SECRET_ID", "")
+        self.secret_key = os.environ.get("TENCENT_SECRET_KEY", "")
+        self.appid = os.environ.get("TENCENT_APPID", "")
         self.host = "asr.tencentcloudapi.com"
         self.service = "asr"
         self.version = "2019-06-14"
         self.action = "SentenceRecognition"
+        logger.info(f"[TencentASR] 初始化: secret_id={self.secret_id[:10] if self.secret_id else 'EMPTY'}..., appid={self.appid}")
     
     def is_available(self) -> bool:
         """检查是否可用"""
-        return bool(self.secret_id and self.secret_key and self.appid)
+        available = bool(self.secret_id and self.secret_key and self.appid)
+        print(f"[TencentASR] is_available: secret_id={bool(self.secret_id)}, secret_key={bool(self.secret_key)}, appid={bool(self.appid)} => {available}", flush=True)
+        return available
     
     def _get_signature(self, params, timestamp, date):
         """生成签名"""

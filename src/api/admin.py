@@ -31,43 +31,104 @@ def create_user():
         "daily_audio_seconds": 600
     }
     """
-    data = request.get_json() or {}
+    import time
+    import re
+    start_time = time.time()
     
-    username = data.get('username')
-    email = data.get('email')
-    
-    if not username or not email:
-        return jsonify({
-            "success": False,
-            "error_code": "VALIDATION_ERROR",
-            "message": "缺少 username 或 email",
-        }), 400
-    
-    db = get_db()
-    
-    # 检查用户是否已存在
-    if db.get_user_by_username(username):
-        return jsonify({
-            "success": False,
-            "error_code": "USER_EXISTS",
-            "message": "用户名已存在",
-        }), 400
-    
-    # 创建用户
     try:
+        # 解析 JSON
+        try:
+            data = request.get_json() or {}
+        except Exception as e:
+            logger.warning(f"[ADMIN] JSON 解析失败 | error={e}")
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": f"JSON 解析失败: {e}",
+            }), 400
+        
+        username = data.get('username', '').strip() if data.get('username') else None
+        email = data.get('email', '').strip() if data.get('email') else None
+        
+        # 验证必填字段
+        if not username or not email:
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "缺少 username 或 email",
+            }), 400
+        
+        # 验证用户名格式（字母数字下划线，3-30字符）
+        if not re.match(r'^[a-zA-Z0-9_]{3,30}$', username):
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "用户名格式错误，仅支持字母数字下划线，3-30字符",
+            }), 400
+        
+        # 验证邮箱格式
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "邮箱格式错误",
+            }), 400
+        
+        # 验证配额参数
+        daily_requests = data.get('daily_requests', 1000)
+        daily_tokens = data.get('daily_tokens', 100000)
+        daily_audio_seconds = data.get('daily_audio_seconds', 600)
+        
+        if not isinstance(daily_requests, int) or daily_requests < 0:
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "daily_requests 必须是非负整数",
+            }), 400
+        
+        if not isinstance(daily_tokens, int) or daily_tokens < 0:
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "daily_tokens 必须是非负整数",
+            }), 400
+        
+        if not isinstance(daily_audio_seconds, int) or daily_audio_seconds < 0:
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "daily_audio_seconds 必须是非负整数",
+            }), 400
+        
+        logger.info(f"[ADMIN] 创建用户请求 | username={username} | email={email}")
+        
+        db = get_db()
+        
+        # 检查用户是否已存在
+        if db.get_user_by_username(username):
+            logger.warning(f"[ADMIN] 用户名已存在 | username={username}")
+            return jsonify({
+                "success": False,
+                "error_code": "USER_EXISTS",
+                "message": "用户名已存在",
+            }), 400
+        
+        # 创建用户
         user_id = db.create_user(
             username=username,
             email=email,
-            daily_requests=data.get('daily_requests', 1000),
-            daily_tokens=data.get('daily_tokens', 100000),
-            daily_audio_seconds=data.get('daily_audio_seconds', 600),
+            daily_requests=daily_requests,
+            daily_tokens=daily_tokens,
+            daily_audio_seconds=daily_audio_seconds,
         )
         
         # 自动生成一个 API Key
         api_key = generate_api_key()
         db.create_api_key(user_id, api_key, name='default')
         
-        logger.info(f"创建用户成功 | username={username} | id={user_id}")
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[ADMIN] 创建用户成功 | username={username} | id={user_id} | duration={duration:.2f}ms")
         
         return jsonify({
             "success": True,
@@ -78,8 +139,10 @@ def create_user():
             },
             "api_key": api_key,  # 只在创建时返回一次
         })
+        
     except Exception as e:
-        logger.error(f"创建用户失败: {e}")
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[ADMIN] 创建用户失败 | error={e} | duration={duration:.2f}ms", exc_info=True)
         return jsonify({
             "success": False,
             "error_code": "CREATE_FAILED",
@@ -90,36 +153,55 @@ def create_user():
 @admin_bp.route('/users/<username>', methods=['GET'])
 def get_user(username):
     """获取用户信息"""
-    db = get_db()
-    user = db.get_user_by_username(username)
+    import time
+    start_time = time.time()
     
-    if not user:
+    try:
+        logger.info(f"[ADMIN] 获取用户信息 | username={username}")
+        
+        db = get_db()
+        user = db.get_user_by_username(username)
+        
+        if not user:
+            logger.warning(f"[ADMIN] 用户不存在 | username={username}")
+            return jsonify({
+                "success": False,
+                "error_code": "NOT_FOUND",
+                "message": "用户不存在",
+            }), 404
+        
+        # 获取用量
+        manager = get_quota_manager()
+        usage = manager.get_usage_summary(user.id)
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[ADMIN] 获取用户信息成功 | username={username} | duration={duration:.2f}ms")
+        
+        return jsonify({
+            "success": True,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_active": user.is_active,
+                "created_at": str(user.created_at),
+            },
+            "quota": {
+                "daily_requests": user.daily_requests,
+                "daily_tokens": user.daily_tokens,
+                "daily_audio_seconds": user.daily_audio_seconds,
+            },
+            "usage": usage,
+        })
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[ADMIN] 获取用户信息失败 | username={username} | error={e} | duration={duration:.2f}ms", exc_info=True)
         return jsonify({
             "success": False,
-            "error_code": "NOT_FOUND",
-            "message": "用户不存在",
-        }), 404
-    
-    # 获取用量
-    manager = get_quota_manager()
-    usage = manager.get_usage_summary(user.id)
-    
-    return jsonify({
-        "success": True,
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "is_active": user.is_active,
-            "created_at": str(user.created_at),
-        },
-        "quota": {
-            "daily_requests": user.daily_requests,
-            "daily_tokens": user.daily_tokens,
-            "daily_audio_seconds": user.daily_audio_seconds,
-        },
-        "usage": usage,
-    })
+            "error_code": "INTERNAL_ERROR",
+            "message": "服务器内部错误",
+        }), 500
 
 
 # ==================== API Key 管理 ====================
@@ -135,34 +217,69 @@ def create_api_key(username):
         "permissions": "all"
     }
     """
-    db = get_db()
-    user = db.get_user_by_username(username)
+    import time
+    start_time = time.time()
     
-    if not user:
+    try:
+        logger.info(f"[ADMIN] 创建 API Key 请求 | username={username}")
+        
+        db = get_db()
+        user = db.get_user_by_username(username)
+        
+        if not user:
+            logger.warning(f"[ADMIN] 用户不存在 | username={username}")
+            return jsonify({
+                "success": False,
+                "error_code": "NOT_FOUND",
+                "message": "用户不存在",
+            }), 404
+        
+        # 解析 JSON
+        try:
+            data = request.get_json() or {}
+        except Exception as e:
+            logger.warning(f"[ADMIN] JSON 解析失败 | error={e}")
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": f"JSON 解析失败: {e}",
+            }), 400
+        
+        name = data.get('name', 'default').strip()
+        permissions = data.get('permissions', 'all')
+        
+        # 验证 name
+        if not name or len(name) > 50:
+            return jsonify({
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "message": "name 不能为空且不超过50字符",
+            }), 400
+        
+        api_key = generate_api_key()
+        key_id = db.create_api_key(user.id, api_key, name=name, permissions=permissions)
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[ADMIN] 创建 API Key 成功 | user={username} | name={name} | duration={duration:.2f}ms")
+        
+        return jsonify({
+            "success": True,
+            "api_key": {
+                "id": key_id,
+                "key": api_key,  # 只返回一次
+                "name": name,
+                "permissions": permissions,
+            }
+        })
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[ADMIN] 创建 API Key 失败 | username={username} | error={e} | duration={duration:.2f}ms", exc_info=True)
         return jsonify({
             "success": False,
-            "error_code": "NOT_FOUND",
-            "message": "用户不存在",
-        }), 404
-    
-    data = request.get_json() or {}
-    name = data.get('name', 'default')
-    permissions = data.get('permissions', 'all')
-    
-    api_key = generate_api_key()
-    key_id = db.create_api_key(user.id, api_key, name=name, permissions=permissions)
-    
-    logger.info(f"创建 API Key | user={username} | name={name}")
-    
-    return jsonify({
-        "success": True,
-        "api_key": {
-            "id": key_id,
-            "key": api_key,  # 只返回一次
-            "name": name,
-            "permissions": permissions,
-        }
-    })
+            "error_code": "CREATE_FAILED",
+            "message": str(e),
+        }), 500
 
 
 @admin_bp.route('/users/<username>/keys', methods=['GET'])
@@ -199,17 +316,34 @@ def list_api_keys(username):
 @admin_bp.route('/keys/<key>/revoke', methods=['POST'])
 def revoke_api_key(key):
     """撤销 API Key"""
-    db = get_db()
+    import time
+    start_time = time.time()
     
-    if db.revoke_api_key(key):
-        logger.info(f"撤销 API Key | key={key[:12]}...")
-        return jsonify({"success": True, "message": "API Key 已撤销"})
-    else:
+    try:
+        logger.info(f"[ADMIN] 撤销 API Key 请求 | key={key[:12]}...")
+        
+        db = get_db()
+        
+        if db.revoke_api_key(key):
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[ADMIN] 撤销 API Key 成功 | key={key[:12]}... | duration={duration:.2f}ms")
+            return jsonify({"success": True, "message": "API Key 已撤销"})
+        else:
+            logger.warning(f"[ADMIN] API Key 不存在 | key={key[:12]}...")
+            return jsonify({
+                "success": False,
+                "error_code": "NOT_FOUND",
+                "message": "API Key 不存在",
+            }), 404
+            
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[ADMIN] 撤销 API Key 失败 | key={key[:12]}... | error={e} | duration={duration:.2f}ms", exc_info=True)
         return jsonify({
             "success": False,
-            "error_code": "NOT_FOUND",
-            "message": "API Key 不存在",
-        }), 404
+            "error_code": "INTERNAL_ERROR",
+            "message": "服务器内部错误",
+        }), 500
 
 
 # ==================== 用量查询 ====================

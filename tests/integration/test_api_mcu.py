@@ -38,6 +38,43 @@ class TestMCUAPI:
         response = client.post('/mcu/stt?engine=vosk')
         assert response.status_code == 400  # 空音频
 
+    def test_stt_success(self, client):
+        """测试 STT 成功"""
+        from unittest.mock import patch, Mock
+        
+        with patch('src.api.v1.mcu.get_asr_service') as mock_asr:
+            mock_service = Mock()
+            mock_service.recognize.return_value = '识别结果'
+            mock_asr.return_value = mock_service
+            
+            response = client.post(
+                '/mcu/stt?engine=tencent',
+                data=b'RIFF....WAVEfmt fake_audio',
+                content_type='application/octet-stream'
+            )
+            
+            assert response.status_code == 200
+            assert response.data.decode('utf-8') == '识别结果'
+
+    def test_stt_multipart(self, client):
+        """测试 STT multipart 上传"""
+        from unittest.mock import patch, Mock
+        import io
+        
+        with patch('src.api.v1.mcu.get_asr_service') as mock_asr:
+            mock_service = Mock()
+            mock_service.recognize.return_value = '识别结果'
+            mock_asr.return_value = mock_service
+            
+            data = {'audio': (io.BytesIO(b'RIFF....WAVEfmt fake'), 'test.wav')}
+            response = client.post(
+                '/mcu/stt',
+                data=data,
+                content_type='multipart/form-data'
+            )
+            
+            assert response.status_code == 200
+
     def test_ask_empty_question(self, client):
         """测试空问题"""
         response = client.post('/mcu/ask')
@@ -49,6 +86,63 @@ class TestMCUAPI:
         """测试带会话的问答"""
         response = client.post('/mcu/ask?session=test123', data='')
         assert response.status_code == 400
+
+    def test_ask_success(self, client):
+        """测试问答成功"""
+        from unittest.mock import patch, Mock
+        
+        with patch('src.api.v1.mcu.get_ai_service') as mock_ai:
+            mock_service = Mock()
+            mock_service.ask.return_value = 'AI回答'
+            mock_ai.return_value = mock_service
+            
+            response = client.post(
+                '/mcu/ask?session=test',
+                data='你好',
+                content_type='text/plain; charset=utf-8'
+            )
+            
+            assert response.status_code == 200
+            assert response.data.decode('utf-8') == 'AI回答'
+
+    def test_ask_json(self, client):
+        """测试 JSON 格式问答"""
+        from unittest.mock import patch, Mock
+        
+        with patch('src.api.v1.mcu.get_ai_service') as mock_ai:
+            mock_service = Mock()
+            mock_service.ask.return_value = 'AI回答'
+            mock_ai.return_value = mock_service
+            
+            response = client.post(
+                '/mcu/ask',
+                json={'question': '你好', 'session': 'test'}
+            )
+            
+            assert response.status_code == 200
+            assert response.data.decode('utf-8') == 'AI回答'
+
+    def test_ask_stream_success(self, client):
+        """测试流式问答成功"""
+        from unittest.mock import patch, Mock
+        
+        with patch('src.api.v1.mcu.get_ai_service') as mock_ai:
+            mock_service = Mock()
+            mock_service.ask_stream.return_value = iter(['你', '好', '！'])
+            mock_ai.return_value = mock_service
+            
+            response = client.post(
+                '/mcu/ask_stream',
+                data='你好',
+                content_type='text/plain'
+            )
+            
+            assert response.status_code == 200
+            assert 'text/event-stream' in response.content_type
+            
+            data = response.data.decode('utf-8')
+            assert 'data: 你' in data
+            assert 'data: [DONE]' in data
 
     def test_tts_empty_text(self, client):
         """测试空文本"""
@@ -62,10 +156,113 @@ class TestMCUAPI:
         response = client.get('/mcu/tts?voice=yunxi&format=mp3')
         assert response.status_code == 400  # 空文本
 
+    def test_tts_success(self, client):
+        """测试 TTS 成功"""
+        from unittest.mock import patch, Mock
+        import tempfile
+        import os
+        import time
+        
+        with patch('src.api.v1.mcu.get_tts_service') as mock_tts:
+            # 创建临时文件
+            temp_path = os.path.join(tempfile.gettempdir(), f'test_tts_{int(time.time()*1000)}.wav')
+            with open(temp_path, 'wb') as f:
+                f.write(b'RIFF....WAVEfmt fake_wav_data')
+            
+            mock_service = Mock()
+            mock_service.synthesize.return_value = temp_path
+            mock_tts.return_value = mock_service
+            
+            response = client.get('/mcu/tts?text=你好&voice=xiaoxiao')
+            
+            assert response.status_code == 200
+            assert response.content_type == 'audio/wav'
+            
+            # 清理
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+
+    def test_tts_post(self, client):
+        """测试 TTS POST 方法"""
+        from unittest.mock import patch, Mock
+        import tempfile
+        import os
+        import time
+        
+        with patch('src.api.v1.mcu.get_tts_service') as mock_tts:
+            temp_path = os.path.join(tempfile.gettempdir(), f'test_tts_{int(time.time()*1000)}.mp3')
+            with open(temp_path, 'wb') as f:
+                f.write(b'ID3fake_mp3_data')
+            
+            mock_service = Mock()
+            mock_service.synthesize.return_value = temp_path
+            mock_tts.return_value = mock_service
+            
+            response = client.post('/mcu/tts', json={
+                'text': '你好',
+                'voice': 'yunxi',
+                'format': 'mp3'
+            })
+            
+            assert response.status_code == 200
+            
+            # 清理
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+
     def test_voice_chat_empty(self, client):
         """测试空语音对话"""
         response = client.post('/mcu/voice_chat')
         assert response.status_code == 400
+
+    def test_voice_chat_success_text(self, client):
+        """测试语音对话成功（返回文本）"""
+        from unittest.mock import patch, Mock
+        
+        with patch('src.api.v1.mcu.get_asr_service') as mock_asr:
+            with patch('src.api.v1.mcu.get_ai_service') as mock_ai:
+                mock_asr_service = Mock()
+                mock_asr_service.recognize.return_value = '你好'
+                mock_asr.return_value = mock_asr_service
+                
+                mock_ai_service = Mock()
+                mock_ai_service.ask.return_value = 'AI回复'
+                mock_ai.return_value = mock_ai_service
+                
+                response = client.post(
+                    '/mcu/voice_chat?engine=tencent&out=text',
+                    data=b'RIFF....WAVEfmt fake_audio',
+                    content_type='application/octet-stream'
+                )
+                
+                assert response.status_code == 200
+                data = response.get_json()
+                assert data['success'] is True
+                assert data['question'] == '你好'
+                assert data['answer'] == 'AI回复'
+
+    def test_voice_chat_no_recognition(self, client):
+        """测试语音对话未识别"""
+        from unittest.mock import patch, Mock
+        
+        with patch('src.api.v1.mcu.get_asr_service') as mock_asr:
+            mock_service = Mock()
+            mock_service.recognize.return_value = ''
+            mock_asr.return_value = mock_service
+            
+            response = client.post(
+                '/mcu/voice_chat',
+                data=b'RIFF....WAVEfmt fake_audio',
+                content_type='application/octet-stream'
+            )
+            
+            assert response.status_code == 500
+            data = response.get_json()
+            assert data['error_code'] == 'ASR_ERROR'
 
 
 class TestMCUAPIV2:
@@ -88,6 +285,25 @@ class TestMCUAPIV2:
         assert data['authenticated'] is False
         assert data['version'] == '2.0.0'
 
+    def test_v2_status_authenticated(self, client):
+        """测试 v2 状态接口（已认证）"""
+        import time
+        # 创建用户获取 API Key
+        username = f'v2status_{int(time.time())}'
+        create_resp = client.post('/admin/users', json={
+            "username": username,
+            "email": f"{username}@example.com"
+        })
+        api_key = create_resp.get_json()['api_key']
+        
+        response = client.get('/v2/mcu/status', headers={
+            'X-API-Key': api_key
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['authenticated'] is True
+        assert 'quota' in data
+
     def test_v2_stt_requires_auth(self, client):
         """测试 v2 STT 需要认证"""
         response = client.post('/v2/mcu/stt')
@@ -95,20 +311,149 @@ class TestMCUAPIV2:
         data = response.get_json()
         assert data['error_code'] == 'AUTH_FAILED'
 
+    def test_v2_stt_authenticated(self, client):
+        """测试 v2 STT 已认证"""
+        import time
+        from unittest.mock import patch, Mock
+        
+        # 创建用户
+        username = f'v2stt_{int(time.time())}'
+        create_resp = client.post('/admin/users', json={
+            "username": username,
+            "email": f"{username}@example.com"
+        })
+        api_key = create_resp.get_json()['api_key']
+        
+        with patch('src.api.v2.mcu.get_asr_service') as mock_asr:
+            mock_service = Mock()
+            mock_service.recognize.return_value = '识别结果'
+            mock_asr.return_value = mock_service
+            
+            response = client.post(
+                '/v2/mcu/stt?engine=tencent',
+                data=b'RIFF....WAVEfmt fake_audio',
+                headers={'X-API-Key': api_key}
+            )
+            
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['success'] is True
+            assert data['text'] == '识别结果'
+
     def test_v2_ask_requires_auth(self, client):
         """测试 v2 问答需要认证"""
         response = client.post('/v2/mcu/ask', data='test question')
         assert response.status_code == 401
+
+    def test_v2_ask_authenticated(self, client):
+        """测试 v2 问答已认证"""
+        import time
+        from unittest.mock import patch, Mock
+        
+        username = f'v2ask_{int(time.time())}'
+        create_resp = client.post('/admin/users', json={
+            "username": username,
+            "email": f"{username}@example.com"
+        })
+        api_key = create_resp.get_json()['api_key']
+        
+        with patch('src.api.v2.mcu.get_ai_service') as mock_ai:
+            mock_service = Mock()
+            mock_service.ask.return_value = 'AI回答'
+            mock_ai.return_value = mock_service
+            
+            response = client.post(
+                '/v2/mcu/ask',
+                data='你好',
+                headers={'X-API-Key': api_key}
+            )
+            
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['success'] is True
+            assert data['answer'] == 'AI回答'
 
     def test_v2_tts_requires_auth(self, client):
         """测试 v2 TTS 需要认证"""
         response = client.get('/v2/mcu/tts?text=hello')
         assert response.status_code == 401
 
+    def test_v2_tts_authenticated(self, client):
+        """测试 v2 TTS 已认证"""
+        import time
+        import tempfile
+        import os
+        from unittest.mock import patch, Mock
+        
+        username = f'v2tts_{int(time.time())}'
+        create_resp = client.post('/admin/users', json={
+            "username": username,
+            "email": f"{username}@example.com"
+        })
+        api_key = create_resp.get_json()['api_key']
+        
+        with patch('src.api.v2.mcu.get_tts_service') as mock_tts:
+            with patch('src.api.v2.mcu.record_usage'):  # Mock record_usage
+                temp_path = os.path.join(tempfile.gettempdir(), f'test_v2tts_{int(time.time()*1000)}.wav')
+                with open(temp_path, 'wb') as f:
+                    f.write(b'RIFF....WAVEfmt fake_wav')
+                
+                mock_service = Mock()
+                mock_service.synthesize.return_value = temp_path
+                mock_tts.return_value = mock_service
+                
+                response = client.get(
+                    '/v2/mcu/tts?text=你好',
+                    headers={'X-API-Key': api_key}
+                )
+                
+                assert response.status_code == 200
+                assert response.content_type == 'audio/wav'
+                
+                # 清理
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+
     def test_v2_voice_chat_requires_auth(self, client):
         """测试 v2 语音对话需要认证"""
         response = client.post('/v2/mcu/voice_chat')
         assert response.status_code == 401
+
+    def test_v2_voice_chat_authenticated(self, client):
+        """测试 v2 语音对话已认证"""
+        import time
+        from unittest.mock import patch, Mock
+        
+        username = f'v2voice_{int(time.time())}'
+        create_resp = client.post('/admin/users', json={
+            "username": username,
+            "email": f"{username}@example.com"
+        })
+        api_key = create_resp.get_json()['api_key']
+        
+        with patch('src.api.v2.mcu.get_asr_service') as mock_asr:
+            with patch('src.api.v2.mcu.get_ai_service') as mock_ai:
+                mock_asr_service = Mock()
+                mock_asr_service.recognize.return_value = '你好'
+                mock_asr.return_value = mock_asr_service
+                
+                mock_ai_service = Mock()
+                mock_ai_service.ask.return_value = 'AI回复'
+                mock_ai.return_value = mock_ai_service
+                
+                response = client.post(
+                    '/v2/mcu/voice_chat?out=text',
+                    data=b'RIFF....WAVEfmt fake_audio',
+                    headers={'X-API-Key': api_key}
+                )
+                
+                assert response.status_code == 200
+                data = response.get_json()
+                assert data['success'] is True
+                assert data['question'] == '你好'
+                assert data['answer'] == 'AI回复'
 
     def test_v2_invalid_api_key(self, client):
         """测试无效 API Key"""
@@ -125,6 +470,32 @@ class TestMCUAPIV2:
             headers={'Authorization': 'Bearer wrong-format'}
         )
         assert response.status_code == 401
+
+    def test_v2_ask_stream_authenticated(self, client):
+        """测试 v2 流式问答已认证"""
+        import time
+        from unittest.mock import patch, Mock
+        
+        username = f'v2stream_{int(time.time())}'
+        create_resp = client.post('/admin/users', json={
+            "username": username,
+            "email": f"{username}@example.com"
+        })
+        api_key = create_resp.get_json()['api_key']
+        
+        with patch('src.api.v2.mcu.get_ai_service') as mock_ai:
+            mock_service = Mock()
+            mock_service.ask_stream.return_value = iter(['你', '好'])
+            mock_ai.return_value = mock_service
+            
+            response = client.post(
+                '/v2/mcu/ask_stream',
+                data='你好',
+                headers={'X-API-Key': api_key}
+            )
+            
+            assert response.status_code == 200
+            assert 'text/event-stream' in response.content_type
 
 
 class TestHealthAPI:

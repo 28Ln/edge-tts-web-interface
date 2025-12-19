@@ -110,6 +110,159 @@ class TestDashboardUsers:
         assert response.status_code == 200
         assert '不能为空' in response.data.decode('utf-8')
 
+    def test_user_detail(self, client):
+        """测试用户详情"""
+        import time
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        # 先创建用户
+        username = f'detailuser_{int(time.time())}'
+        client.post('/dashboard/users/create', data={
+            'username': username,
+            'email': f'{username}@example.com',
+            'daily_requests': 500,
+            'daily_tokens': 50000,
+            'daily_audio_seconds': 300
+        })
+        
+        # 获取用户 ID
+        from src.auth.models import get_db
+        db = get_db()
+        user = db.get_user_by_username(username)
+        
+        response = client.get(f'/dashboard/users/{user.id}')
+        assert response.status_code == 200
+        assert username in response.data.decode('utf-8')
+        assert 'API Key' in response.data.decode('utf-8')
+
+    def test_user_detail_not_found(self, client):
+        """测试用户详情不存在"""
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        response = client.get('/dashboard/users/99999', follow_redirects=True)
+        assert response.status_code == 200
+        assert '用户不存在' in response.data.decode('utf-8')
+
+    def test_edit_user(self, client):
+        """测试编辑用户"""
+        import time
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        # 先创建用户
+        username = f'edituser_{int(time.time())}'
+        client.post('/dashboard/users/create', data={
+            'username': username,
+            'email': f'{username}@example.com',
+            'daily_requests': 500,
+            'daily_tokens': 50000,
+            'daily_audio_seconds': 300
+        })
+        
+        from src.auth.models import get_db
+        db = get_db()
+        user = db.get_user_by_username(username)
+        
+        # 编辑用户
+        response = client.post(f'/dashboard/users/{user.id}/edit', data={
+            'daily_requests': 1000,
+            'daily_tokens': 200000,
+            'daily_audio_seconds': 1200,
+            'is_active': 'on'
+        }, follow_redirects=True)
+        
+        assert response.status_code == 200
+        assert '用户配置已更新' in response.data.decode('utf-8')
+
+    def test_toggle_user(self, client):
+        """测试启用/禁用用户"""
+        import time
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        # 先创建用户
+        username = f'toggleuser_{int(time.time())}'
+        client.post('/dashboard/users/create', data={
+            'username': username,
+            'email': f'{username}@example.com',
+            'daily_requests': 500,
+            'daily_tokens': 50000,
+            'daily_audio_seconds': 300
+        })
+        
+        from src.auth.models import get_db
+        db = get_db()
+        user = db.get_user_by_username(username)
+        
+        # 切换状态
+        response = client.post(f'/dashboard/users/{user.id}/toggle', follow_redirects=True)
+        assert response.status_code == 200
+        assert '用户已' in response.data.decode('utf-8')
+
+
+class TestDashboardAPIKeys:
+    """Dashboard API Key 管理测试"""
+
+    def test_create_api_key(self, client):
+        """测试创建 API Key"""
+        import time
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        # 先创建用户
+        username = f'keyuser_{int(time.time())}'
+        client.post('/dashboard/users/create', data={
+            'username': username,
+            'email': f'{username}@example.com',
+            'daily_requests': 500,
+            'daily_tokens': 50000,
+            'daily_audio_seconds': 300
+        })
+        
+        from src.auth.models import get_db
+        db = get_db()
+        user = db.get_user_by_username(username)
+        
+        # 创建新 Key
+        response = client.post(f'/dashboard/users/{user.id}/keys/create', data={
+            'name': 'test-key',
+            'permissions': 'stt,tts'
+        }, follow_redirects=True)
+        
+        assert response.status_code == 200
+        assert 'API Key 创建成功' in response.data.decode('utf-8')
+
+    def test_revoke_api_key(self, client):
+        """测试撤销 API Key"""
+        import time
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        # 先创建用户
+        username = f'revokeuser_{int(time.time())}'
+        client.post('/dashboard/users/create', data={
+            'username': username,
+            'email': f'{username}@example.com',
+            'daily_requests': 500,
+            'daily_tokens': 50000,
+            'daily_audio_seconds': 300
+        })
+        
+        from src.auth.models import get_db
+        db = get_db()
+        user = db.get_user_by_username(username)
+        keys = db.get_user_api_keys(user.id)
+        
+        if keys:
+            api_key = keys[0].key
+            response = client.post(f'/dashboard/keys/{api_key}/revoke', follow_redirects=True)
+            assert response.status_code == 200
+            assert 'API Key 已撤销' in response.data.decode('utf-8')
+
+    def test_revoke_nonexistent_key(self, client):
+        """测试撤销不存在的 Key"""
+        client.post('/dashboard/login', data={'password': 'admin123'})
+        
+        response = client.post('/dashboard/keys/sk-nonexistent/revoke', follow_redirects=True)
+        assert response.status_code == 200
+        assert 'API Key 不存在' in response.data.decode('utf-8')
+
 
 class TestDashboardUsage:
     """Dashboard 用量统计测试"""

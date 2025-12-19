@@ -8,6 +8,10 @@ import sys
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 在任何其他导入之前加载 .env 文件
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 from src.api import create_app
 from src.config import get_config, validate_config
 from src.utils.logger import setup_logger
@@ -53,6 +57,11 @@ def main():
     """主函数"""
     # 加载配置
     config = get_config()
+    
+    # 调试：打印配置
+    logger.info(f"AI API Base: {config.ai.api_base}")
+    logger.info(f"AI Model: {config.ai.model}")
+    logger.info(f"Tencent ID: {config.asr.tencent_secret_id[:10]}..." if config.asr.tencent_secret_id else "Tencent ID: NOT SET")
     
     # 验证配置
     errors = validate_config(config)

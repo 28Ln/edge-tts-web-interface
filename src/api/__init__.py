@@ -52,8 +52,9 @@ def register_error_handlers(app: Flask):
 
 def create_app() -> Flask:
     """创建 Flask 应用"""
+    # 确保 .env 已加载（main.py 中已加载，这里是备用）
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
     
     app = Flask(__name__, 
                 static_folder='../../static',

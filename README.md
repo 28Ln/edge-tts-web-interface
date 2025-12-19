@@ -185,6 +185,37 @@
 ### 深色模式
 - 点击右上角主题切换按钮（太阳或月亮图标），切换深色或浅色模式。
 
+## 📚 文档
+
+- **[完整项目说明](PROJECT.md)** - 详细的项目文档
+- **[测试指南](docs/testing.md)** - 测试运行和编写指南
+- **[API 文档](docs/api/)** - API 接口说明
+- **[架构说明](docs/architecture.md)** - 系统架构设计
+
+## 测试
+
+项目包含完整的测试套件，覆盖率达到 **70%+**。
+
+### 运行测试
+```bash
+# 运行单元测试和集成测试（推荐）
+py -m pytest tests/unit tests/integration -v
+
+# 带覆盖率报告
+py -m pytest tests/unit tests/integration --cov=src --cov-report=term-missing
+
+# 运行所有测试（包括需要真实服务的 E2E 测试）
+py -m pytest tests/ -v
+```
+
+### 测试统计
+- **单元测试**: 66 个 - 测试独立模块和函数
+- **集成测试**: 87 个 - 测试 API 接口
+- **E2E 测试**: 13 个 - 测试完整业务流程（需要真实服务）
+- **总计**: 166 个测试
+
+详细测试指南请参考 [docs/testing.md](docs/testing.md)
+
 ## 依赖
 
 - Flask
@@ -193,6 +224,8 @@
 - vosk
 - werkzeug
 - requests
+- pytest (开发依赖)
+- pytest-cov (开发依赖)
 
 ## 贡献
 

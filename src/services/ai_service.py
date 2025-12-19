@@ -3,22 +3,48 @@ AI 服务
 统一管理 AI 对话、上下文历史
 """
 
+import time
 from datetime import datetime
-from typing import Generator, Optional
+from typing import Generator, Optional, List, Dict, Any
 from openai import OpenAI
+from openai import APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
 
 from ..config import get_config
 from ..utils.logger import get_ai_logger
-from ..exceptions import AIError
+from ..exceptions import (
+    AIError, 
+    AIConnectionError, 
+    AITimeoutError, 
+    AIRateLimitError, 
+    AIInvalidKeyError
+)
 from .session_store import get_session_store
 
 logger = get_ai_logger()
 
 
 class AIService:
-    """AI 服务"""
+    """
+    AI 对话服务
     
-    def __init__(self):
+    提供 AI 问答功能，支持流式和非流式响应，自动管理会话历史。
+    
+    Attributes:
+        client: OpenAI 客户端实例
+        model: 使用的 AI 模型名称
+        max_history: 保留的最大历史对话轮数
+        timeout: 非流式请求超时时间（秒）
+        stream_timeout: 流式请求超时时间（秒）
+        max_retries: 最大重试次数
+        retry_delay: 重试延迟时间（秒）
+    
+    Example:
+        >>> service = get_ai_service()
+        >>> answer = service.ask("你好", session_id="user123")
+        >>> print(answer)
+    """
+    
+    def __init__(self) -> None:
         config = get_config()
         self.client = OpenAI(
             base_url=config.ai.api_base,
@@ -26,12 +52,32 @@ class AIService:
         )
         self.model = config.ai.model
         self.max_history = config.ai.max_history
+        self.timeout = config.ai.timeout
+        self.stream_timeout = config.ai.stream_timeout
+        self.max_retries = config.ai.max_retries
+        self.retry_delay = config.ai.retry_delay
         
         # 使用会话存储（支持内存/Redis）
         self._session_store = get_session_store()
     
     def get_system_prompt(self, short: bool = False) -> str:
-        """获取带时间上下文的 system prompt"""
+        """
+        获取带时间上下文的系统提示词
+        
+        生成包含当前日期、时间、星期等上下文信息的系统提示词，
+        指导 AI 使用与用户相同的语言回复。
+        
+        Args:
+            short: 是否使用简短版本（用于简洁回复场景）
+        
+        Returns:
+            系统提示词字符串
+        
+        Note:
+            - 自动检测当前时间并生成时间段（上午/下午/晚上等）
+            - 支持中英日多语言回复指导
+            - 简短版本限制回复在100字以内
+        """
         now = datetime.now()
         
         date_str = now.strftime("%Y年%m月%d日")
@@ -80,8 +126,20 @@ IMPORTANT RULES:
 3. Keep your answers concise, accurate and helpful.
 4. If you don't know something, say so honestly."""
 
-    def _get_messages(self, session_id: str, question: str, short: bool = False) -> list:
-        """构建消息列表（含历史）"""
+    def _get_messages(self, session_id: str, question: str, short: bool = False) -> List[Dict[str, str]]:
+        """
+        构建完整的消息列表
+        
+        将系统提示词、历史对话和当前问题组合成完整的消息列表。
+        
+        Args:
+            session_id: 会话ID，用于获取历史记录
+            question: 用户当前问题
+            short: 是否使用简短系统提示词
+        
+        Returns:
+            消息列表，格式为 [{"role": "system/user/assistant", "content": "..."}]
+        """
         history = self._session_store.get(session_id) or []
         
         messages = [{'role': 'system', 'content': self.get_system_prompt(short)}]
@@ -90,8 +148,21 @@ IMPORTANT RULES:
         
         return messages
     
-    def _save_history(self, session_id: str, question: str, answer: str):
-        """保存对话历史"""
+    def _save_history(self, session_id: str, question: str, answer: str) -> None:
+        """
+        保存对话历史到会话存储
+        
+        将用户问题和 AI 回答保存到会话存储中，自动限制历史记录数量。
+        
+        Args:
+            session_id: 会话ID
+            question: 用户问题
+            answer: AI 回答
+        
+        Note:
+            - 自动限制历史记录数量为 max_history * 2（问答对）
+            - 超出限制时自动删除最旧的记录
+        """
         max_messages = self.max_history * 2
         
         # 追加用户消息
@@ -111,15 +182,35 @@ IMPORTANT RULES:
         """
         AI 问答（非流式）
         
+        发送问题到 AI 服务并等待完整回答，自动管理会话历史。
+        
         Args:
-            question: 问题
-            session_id: 会话ID
-            short: 是否使用简短回复
+            question: 用户问题
+            session_id: 会话ID，用于区分不同用户或对话，默认为 "default"
+            short: 是否使用简短回复模式（限制100字以内）
         
         Returns:
-            AI 回答
+            AI 的完整回答文本
+        
+        Raises:
+            AIInvalidKeyError: API 密钥无效
+            AIRateLimitError: 请求速率超限
+            AITimeoutError: 请求超时
+            AIConnectionError: 网络连接失败
+            AIError: 其他 AI 服务错误
+        
+        Example:
+            >>> service = get_ai_service()
+            >>> answer = service.ask("今天天气怎么样？", session_id="user123")
+            >>> print(answer)
+        
+        Note:
+            - 自动重试最多 max_retries 次
+            - 超时时间为 timeout 秒（默认30秒）
+            - 自动保存对话历史
         """
-        logger.info(f"[AI] 问答请求 | session={session_id} | question={question[:50]}...")
+        start_time = time.time()
+        logger.info(f"[AI] 问答请求 | session={session_id} | question_length={len(question)}")
         
         try:
             messages = self._get_messages(session_id, question, short)
@@ -127,31 +218,80 @@ IMPORTANT RULES:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                stream=False
+                stream=False,
+                timeout=self.timeout,
+                max_retries=self.max_retries
             )
             
             answer = response.choices[0].message.content
             self._save_history(session_id, question, answer)
             
-            logger.info(f"[AI] 回答成功 | answer={answer[:50]}...")
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"[AI] 回答成功 | answer_length={len(answer)} | duration={duration:.2f}ms")
             return answer
             
+        except AuthenticationError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 认证失败 | error={e} | duration={duration:.2f}ms")
+            raise AIInvalidKeyError(f"AI服务密钥无效: {e}")
+            
+        except RateLimitError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 速率限制 | error={e} | duration={duration:.2f}ms")
+            raise AIRateLimitError(f"AI服务请求过于频繁: {e}")
+            
+        except APITimeoutError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 请求超时 | error={e} | duration={duration:.2f}ms")
+            raise AITimeoutError(f"AI服务请求超时: {e}")
+            
+        except APIConnectionError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 连接失败 | error={e} | duration={duration:.2f}ms")
+            raise AIConnectionError(f"AI服务连接失败: {e}")
+            
+        except APIError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] API错误 | error={e} | duration={duration:.2f}ms")
+            raise AIError(f"AI服务API错误: {e}")
+            
         except Exception as e:
-            logger.error(f"[AI] 调用失败: {e}")
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 未知错误 | error={e} | duration={duration:.2f}ms", exc_info=True)
             raise AIError(f"AI服务调用失败: {e}")
     
     def ask_stream(self, question: str, session_id: str = "default") -> Generator[str, None, None]:
         """
         AI 流式问答
         
+        发送问题到 AI 服务并以流式方式接收回答，适用于需要实时显示的场景。
+        
         Args:
-            question: 问题
-            session_id: 会话ID
+            question: 用户问题
+            session_id: 会话ID，用于区分不同用户或对话，默认为 "default"
         
         Yields:
-            AI 回答片段
+            AI 回答的文本片段，按顺序生成
+        
+        Raises:
+            AIInvalidKeyError: API 密钥无效
+            AIRateLimitError: 请求速率超限
+            AITimeoutError: 请求超时
+            AIConnectionError: 网络连接失败
+            AIError: 其他 AI 服务错误
+        
+        Example:
+            >>> service = get_ai_service()
+            >>> for chunk in service.ask_stream("讲个故事", session_id="user123"):
+            ...     print(chunk, end='', flush=True)
+        
+        Note:
+            - 超时时间为 stream_timeout 秒（默认60秒）
+            - 完成后自动保存完整对话历史
+            - 适用于 SSE (Server-Sent Events) 等实时场景
         """
-        logger.info(f"[AI] 流式问答 | session={session_id} | question={question[:50]}...")
+        start_time = time.time()
+        logger.info(f"[AI] 流式问答 | session={session_id} | question_length={len(question)}")
         
         messages = self._get_messages(session_id, question)
         full_answer = []
@@ -160,7 +300,9 @@ IMPORTANT RULES:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                stream=True
+                stream=True,
+                timeout=self.stream_timeout,
+                max_retries=self.max_retries
             )
             
             for chunk in response:
@@ -175,14 +317,52 @@ IMPORTANT RULES:
             if full_answer:
                 answer_text = ''.join(full_answer)
                 self._save_history(session_id, question, answer_text)
-                logger.info(f"[AI] 流式回答完成 | length={len(answer_text)}")
+                duration = (time.time() - start_time) * 1000
+                logger.info(f"[AI] 流式回答完成 | length={len(answer_text)} | duration={duration:.2f}ms")
                 
+        except AuthenticationError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 流式认证失败 | error={e} | duration={duration:.2f}ms")
+            raise AIInvalidKeyError(f"AI服务密钥无效: {e}")
+            
+        except RateLimitError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 流式速率限制 | error={e} | duration={duration:.2f}ms")
+            raise AIRateLimitError(f"AI服务请求过于频繁: {e}")
+            
+        except APITimeoutError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 流式请求超时 | error={e} | duration={duration:.2f}ms")
+            raise AITimeoutError(f"AI服务请求超时: {e}")
+            
+        except APIConnectionError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 流式连接失败 | error={e} | duration={duration:.2f}ms")
+            raise AIConnectionError(f"AI服务连接失败: {e}")
+            
+        except APIError as e:
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 流式API错误 | error={e} | duration={duration:.2f}ms")
+            raise AIError(f"AI服务API错误: {e}")
+            
         except Exception as e:
-            logger.error(f"[AI] 流式调用失败: {e}")
+            duration = (time.time() - start_time) * 1000
+            logger.error(f"[AI] 流式未知错误 | error={e} | duration={duration:.2f}ms", exc_info=True)
             raise AIError(f"AI服务调用失败: {e}")
     
-    def clear_history(self, session_id: str):
-        """清除会话历史"""
+    def clear_history(self, session_id: str) -> None:
+        """
+        清除指定会话的历史记录
+        
+        删除指定会话ID的所有历史对话记录。
+        
+        Args:
+            session_id: 要清除的会话ID
+        
+        Example:
+            >>> service = get_ai_service()
+            >>> service.clear_history("user123")
+        """
         self._session_store.delete(session_id)
         logger.info(f"[AI] 清除历史 | session={session_id}")
 
@@ -192,7 +372,19 @@ _ai_service: Optional[AIService] = None
 
 
 def get_ai_service() -> AIService:
-    """获取 AI 服务实例"""
+    """
+    获取 AI 服务的全局单例实例
+    
+    使用单例模式确保整个应用只有一个 AI 服务实例，
+    避免重复初始化和资源浪费。
+    
+    Returns:
+        AIService 实例
+    
+    Example:
+        >>> service = get_ai_service()
+        >>> answer = service.ask("你好")
+    """
     global _ai_service
     if _ai_service is None:
         _ai_service = AIService()

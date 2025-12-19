@@ -49,6 +49,34 @@ class ASRError(AppError):
     message = "语音识别失败"
 
 
+class ASREngineNotAvailable(ASRError):
+    """ASR引擎不可用错误"""
+    code = 503
+    error_code = "ASR_ENGINE_UNAVAILABLE"
+    message = "语音识别引擎不可用"
+
+
+class ASRFormatError(ASRError):
+    """ASR音频格式错误"""
+    code = 400
+    error_code = "ASR_FORMAT_ERROR"
+    message = "音频格式不支持"
+
+
+class ASRTimeoutError(ASRError):
+    """ASR识别超时错误"""
+    code = 504
+    error_code = "ASR_TIMEOUT"
+    message = "语音识别超时"
+
+
+class ASRNetworkError(ASRError):
+    """ASR网络错误"""
+    code = 503
+    error_code = "ASR_NETWORK_ERROR"
+    message = "语音识别网络错误"
+
+
 class AIError(AppError):
     """AI服务错误"""
     code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.AI_ERROR, 500)
@@ -56,11 +84,53 @@ class AIError(AppError):
     message = "AI服务调用失败"
 
 
+class AIConnectionError(AIError):
+    """AI服务连接错误"""
+    code = 503
+    error_code = "AI_CONNECTION_ERROR"
+    message = "AI服务连接失败"
+
+
+class AITimeoutError(AIError):
+    """AI服务超时错误"""
+    code = 504
+    error_code = "AI_TIMEOUT"
+    message = "AI服务请求超时"
+
+
+class AIRateLimitError(AIError):
+    """AI服务速率限制错误"""
+    code = 429
+    error_code = "AI_RATE_LIMIT"
+    message = "AI服务请求过于频繁"
+
+
+class AIInvalidKeyError(AIError):
+    """AI服务密钥无效错误"""
+    code = 401
+    error_code = "AI_INVALID_KEY"
+    message = "AI服务密钥无效"
+
+
 class TTSError(AppError):
     """语音合成错误"""
     code = ERROR_CODE_TO_HTTP_STATUS.get(ErrorCode.TTS_ERROR, 500)
     error_code = ErrorCode.TTS_ERROR
     message = "语音合成失败"
+
+
+class TTSVoiceNotFound(TTSError):
+    """TTS语音不存在错误"""
+    code = 400
+    error_code = "TTS_VOICE_NOT_FOUND"
+    message = "语音不存在"
+
+
+class TTSTimeoutError(TTSError):
+    """TTS合成超时错误"""
+    code = 504
+    error_code = "TTS_TIMEOUT"
+    message = "语音合成超时"
 
 
 class ConfigError(AppError):

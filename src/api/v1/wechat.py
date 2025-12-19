@@ -15,7 +15,7 @@ from flask import Blueprint, request, jsonify
 from ...services.ai_service import get_ai_service
 from ...services.asr_service import get_asr_service
 from ...utils.logger import get_api_logger
-from ...exceptions import ValidationError
+from ...exceptions import ValidationError, ASRError, AIError, AudioError
 
 logger = get_api_logger()
 
@@ -23,6 +23,10 @@ wechat_bp = Blueprint('wechat_v1', __name__, url_prefix='/wechat')
 
 # 微信配置
 WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "your_wechat_token")
+
+# 常量配置
+MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_MESSAGE_LENGTH = 2000  # 2000 字符
 
 
 def verify_wechat_signature(signature: str, timestamp: str, nonce: str) -> bool:
@@ -37,7 +41,10 @@ def convert_amr_to_wav(amr_data: bytes) -> tuple:
     """将微信 AMR 音频转换为 WAV"""
     temp_amr = None
     temp_wav = None
+    
     try:
+        logger.debug(f"[AMR转换] 开始 | size={len(amr_data)}")
+        
         temp_amr = tempfile.NamedTemporaryFile(suffix='.amr', delete=False)
         temp_amr.write(amr_data)
         temp_amr.close()
@@ -49,20 +56,39 @@ def convert_amr_to_wav(amr_data: bytes) -> tuple:
             "ffmpeg", "-i", temp_amr.name,
             "-ac", "1", "-ar", "16000", "-acodec", "pcm_s16le",
             "-y", temp_wav.name
-        ], capture_output=True, text=True)
+        ], capture_output=True, text=True, timeout=30)
         
         if result.returncode == 0:
             with open(temp_wav.name, 'rb') as f:
-                return f.read(), None
+                wav_data = f.read()
+            logger.debug(f"[AMR转换] 成功 | wav_size={len(wav_data)}")
+            return wav_data, None
         else:
-            return None, f"AMR 转换失败: {result.stderr}"
+            error_msg = f"AMR 转换失败: {result.stderr}"
+            logger.error(f"[AMR转换] 失败 | error={error_msg}")
+            return None, error_msg
+            
+    except subprocess.TimeoutExpired:
+        error_msg = "AMR 转换超时"
+        logger.error(f"[AMR转换] 超时")
+        return None, error_msg
+        
     except Exception as e:
-        return None, str(e)
+        error_msg = f"AMR 转换异常: {str(e)}"
+        logger.error(f"[AMR转换] 异常 | error={e}", exc_info=True)
+        return None, error_msg
+        
     finally:
         if temp_amr and os.path.exists(temp_amr.name):
-            os.unlink(temp_amr.name)
+            try:
+                os.unlink(temp_amr.name)
+            except:
+                pass
         if temp_wav and os.path.exists(temp_wav.name):
-            os.unlink(temp_wav.name)
+            try:
+                os.unlink(temp_wav.name)
+            except:
+                pass
 
 
 def make_text_reply(from_user: str, to_user: str, content: str) -> str:
@@ -123,67 +149,135 @@ def wechat_callback():
 @wechat_bp.route('/chat', methods=['POST'])
 def wechat_chat():
     """微信小程序文字对话接口"""
-    data = request.get_json() or {}
-    message = data.get('message', '')
-    session_id = data.get('session_id', 'default')
+    start_time = time.time()
     
-    if not message:
-        raise ValidationError("消息内容为空")
-    
-    logger.info(f"[微信-文字] session={session_id} | message={message[:50]}...")
-    
-    ai_service = get_ai_service()
-    answer = ai_service.ask(message, session_id=session_id, short=True)
-    
-    return jsonify({
-        "success": True,
-        "reply": answer,
-        "session_id": session_id
-    })
+    try:
+        # 解析 JSON
+        try:
+            data = request.get_json() or {}
+        except Exception as e:
+            logger.warning(f"[微信-文字] JSON 解析失败: {e}")
+            raise ValidationError("请求格式错误，需要 JSON 格式")
+        
+        message = data.get('message', '')
+        session_id = data.get('session_id', 'default')
+        
+        # 验证消息
+        if not message or not message.strip():
+            raise ValidationError("消息内容为空")
+        
+        message = message.strip()
+        if len(message) > MAX_MESSAGE_LENGTH:
+            raise ValidationError(f"消息过长，最大支持 {MAX_MESSAGE_LENGTH} 字符")
+        
+        logger.info(f"[微信-文字] 开始处理 | session={session_id} | message_length={len(message)}")
+        
+        # AI 问答
+        ai_service = get_ai_service()
+        answer = ai_service.ask(message, session_id=session_id, short=True)
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[微信-文字] 处理完成 | answer_length={len(answer)} | duration={duration:.2f}ms")
+        
+        return jsonify({
+            "success": True,
+            "reply": answer,
+            "session_id": session_id
+        })
+        
+    except ValidationError as e:
+        duration = (time.time() - start_time) * 1000
+        logger.warning(f"[微信-文字] 验证失败 | error={e} | duration={duration:.2f}ms")
+        raise
+        
+    except AIError as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[微信-文字] AI 失败 | error={e} | duration={duration:.2f}ms")
+        raise
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[微信-文字] 未知错误 | error={e} | duration={duration:.2f}ms", exc_info=True)
+        raise AIError(f"对话失败: {str(e)}")
 
 
 @wechat_bp.route('/voice', methods=['POST'])
 def wechat_voice():
     """微信小程序语音对话接口"""
-    audio_format = request.args.get('format', 'amr')
-    engine = request.args.get('engine', 'tencent')
+    start_time = time.time()
     
-    if request.content_type and 'multipart/form-data' in request.content_type:
-        audio_file = request.files.get('audio') or request.files.get('file')
-        if not audio_file:
-            raise ValidationError("未找到音频文件")
-        audio_data = audio_file.read()
-    else:
-        audio_data = request.get_data()
-    
-    if not audio_data:
-        raise ValidationError("音频数据为空")
-    
-    # 转换音频格式
-    if audio_format in ['amr', 'silk']:
-        wav_data, error = convert_amr_to_wav(audio_data)
-        if error:
-            return jsonify({"success": False, "error": error}), 500
-    else:
+    try:
+        audio_format = request.args.get('format', 'amr')
+        engine = request.args.get('engine', 'tencent')
+        
+        # 获取音频
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            audio_file = request.files.get('audio') or request.files.get('file')
+            if not audio_file:
+                raise ValidationError("未找到音频文件")
+            audio_data = audio_file.read()
+        else:
+            audio_data = request.get_data()
+        
+        # 验证音频
+        if not audio_data:
+            raise ValidationError("音频数据为空")
+        
+        if len(audio_data) > MAX_AUDIO_SIZE:
+            raise ValidationError(f"音频文件过大，最大支持 {MAX_AUDIO_SIZE // 1024 // 1024}MB")
+        
+        logger.info(f"[微信-语音] 开始处理 | format={audio_format} | engine={engine} | size={len(audio_data)}")
+        
+        # 转换音频格式
+        if audio_format in ['amr', 'silk']:
+            wav_data, error = convert_amr_to_wav(audio_data)
+            if error:
+                raise AudioError(error)
+        else:
+            asr_service = get_asr_service()
+            wav_data = asr_service.convert_to_wav(audio_data)
+        
+        # 语音识别
         asr_service = get_asr_service()
-        wav_data = asr_service.convert_to_wav(audio_data)
-    
-    # 语音识别
-    asr_service = get_asr_service()
-    question = asr_service.recognize(wav_data, engine=engine)
-    
-    if not question:
-        return jsonify({"success": False, "error": "未识别到语音"}), 400
-    
-    # AI 回答
-    ai_service = get_ai_service()
-    answer = ai_service.ask(question, short=True)
-    
-    return jsonify({
-        "success": True,
-        "question": question,
-        "answer": answer
-    })
+        question = asr_service.recognize(wav_data, engine=engine)
+        
+        if not question or not question.strip():
+            raise ASRError("未识别到语音内容")
+        
+        logger.info(f"[微信-语音] ASR 完成 | question={question[:50]}...")
+        
+        # AI 回答
+        ai_service = get_ai_service()
+        answer = ai_service.ask(question, short=True)
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[微信-语音] 处理完成 | duration={duration:.2f}ms")
+        
+        return jsonify({
+            "success": True,
+            "question": question,
+            "answer": answer
+        })
+        
+    except ValidationError as e:
+        duration = (time.time() - start_time) * 1000
+        logger.warning(f"[微信-语音] 验证失败 | error={e} | duration={duration:.2f}ms")
+        return jsonify({"success": False, "error": str(e)}), 400
+        
+    except (ASRError, AudioError) as e:
+        duration = (time.time() - start_time) * 1000
+        logger.warning(f"[微信-语音] 音频处理失败 | error={e} | duration={duration:.2f}ms")
+        return jsonify({"success": False, "error": str(e)}), 400
+        
+    except AIError as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[微信-语音] AI 失败 | error={e} | duration={duration:.2f}ms")
+        return jsonify({"success": False, "error": str(e)}), 500
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[微信-语音] 未知错误 | error={e} | duration={duration:.2f}ms", exc_info=True)
+        return jsonify({"success": False, "error": "服务器内部错误"}), 500
 
 
 @wechat_bp.route('/stt', methods=['POST'])
