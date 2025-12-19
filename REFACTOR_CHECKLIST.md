@@ -3,25 +3,25 @@
 ## 🔴 紧急 (P0) - 立即处理
 
 ### 目录结构
-- [ ] 删除根目录的 `app.py`（已有 `src/main.py`）
-- [ ] 移动 `uploads/` 到 `data/uploads/`
-- [ ] 移动 `tts/` 到 `data/tts/`
+- [x] 删除根目录的 `app.py`（已有 `src/main.py`）✅
+- [x] 移动 `uploads/` 到 `data/uploads/`✅
+- [x] 移动 `tts/` 到 `data/tts/`✅
 - [ ] 删除 `ffmpeg/` 二进制文件（通过系统安装）
-- [ ] 删除所有 `OPTIMIZATION_*.md` 报告文件
+- [x] 删除所有 `OPTIMIZATION_*.md` 报告文件✅
 
 ### 文件命名
 - [ ] 统一测试文件命名：`test_<module>_<feature>.py`
-- [ ] 删除 `test_error_handling.py`（临时测试文件）
+- [x] 删除 `test_error_handling.py`（临时测试文件）✅
 
 ### 代码清理
-- [ ] 删除所有 `print()` 调试语句
-- [ ] 删除 `__pycache__` 目录（添加到 .gitignore）
+- [x] 删除所有 `print()` 调试语句✅
+- [x] 删除 `__pycache__` 目录（添加到 .gitignore）✅
 
 ## 🟠 高优先级 (P1) - 本周完成
 
 ### 目录结构
-- [ ] 创建 `data/logs/` 目录
-- [ ] 创建 `migrations/` 数据库迁移目录
+- [x] 创建 `data/logs/` 目录✅
+- [x] 创建 `migrations/` 数据库迁移目录✅
 - [ ] 重组 `templates/`: `templates/web/`, `templates/dashboard/`
 - [ ] 重组 `static/`: `static/assets/css/`, `static/assets/js/`, `static/assets/img/`
 - [ ] 每个 `examples/` 子目录添加 README.md
