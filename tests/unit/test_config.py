@@ -123,10 +123,10 @@ class TestLogger:
         filter = SensitiveFilter()
         record = logging.LogRecord(
             'test', logging.INFO, '', 0,
-            'api_key=sk-1234567890abcdef1234567890abcdef', (), None
+            'api_key=etk_1234567890abcdef1234567890abcdef', (), None
         )
         filter.filter(record)
-        assert 'sk-1234567890' not in record.msg
+        assert 'etk_1234567890' not in record.msg
         assert '***' in record.msg
 
 

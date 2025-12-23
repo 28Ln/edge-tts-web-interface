@@ -15,14 +15,14 @@ from ..utils.logger import get_logger
 logger = get_logger("auth")
 
 # API Key 前缀
-API_KEY_PREFIX = "sk-"
+API_KEY_PREFIX = "etk_"
 
 
 def generate_api_key(length: int = 32) -> str:
     """
     生成 API Key
     
-    格式: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    格式: etk_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
     """
     random_part = secrets.token_hex(length // 2)
     return f"{API_KEY_PREFIX}{random_part}"

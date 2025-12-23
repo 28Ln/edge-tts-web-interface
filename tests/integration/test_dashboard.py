@@ -96,7 +96,7 @@ class TestDashboardUsers:
         
         assert response.status_code == 200
         assert '用户创建成功' in response.data.decode('utf-8')
-        assert 'sk-' in response.data.decode('utf-8')  # API Key
+        assert 'etk_' in response.data.decode('utf-8')  # API Key
 
     def test_create_user_missing_fields(self, client):
         """测试创建用户缺少字段"""
@@ -259,7 +259,7 @@ class TestDashboardAPIKeys:
         """测试撤销不存在的 Key"""
         client.post('/dashboard/login', data={'password': 'admin123'})
         
-        response = client.post('/dashboard/keys/sk-nonexistent/revoke', follow_redirects=True)
+        response = client.post('/dashboard/keys/etk_nonexistent/revoke', follow_redirects=True)
         assert response.status_code == 200
         assert 'API Key 不存在' in response.data.decode('utf-8')
 

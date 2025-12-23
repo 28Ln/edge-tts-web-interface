@@ -474,7 +474,7 @@ class TestAuthModels:
         key = ApiKey(
             id=1,
             user_id=1,
-            key='sk-test',
+            key='etk_test',
             name='default',
             created_at=datetime.now()
         )
@@ -499,9 +499,9 @@ class TestAPIKey:
         """测试哈希 API Key"""
         from src.auth.api_key import hash_api_key
         
-        hash1 = hash_api_key('sk-test123')
-        hash2 = hash_api_key('sk-test123')
-        hash3 = hash_api_key('sk-different')
+        hash1 = hash_api_key('etk_test123')
+        hash2 = hash_api_key('etk_test123')
+        hash3 = hash_api_key('etk_different')
         
         assert hash1 == hash2
         assert hash1 != hash3

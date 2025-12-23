@@ -21,7 +21,7 @@ class TestAdminUserAPI:
         assert data['success'] is True
         assert data['user']['username'] == username
         assert 'api_key' in data
-        assert data['api_key'].startswith('sk-')
+        assert data['api_key'].startswith('etk_')
 
     def test_create_user_missing_fields(self, client):
         """测试缺少必填字段"""
@@ -91,7 +91,7 @@ class TestAdminAPIKeyAPI:
         data = response.get_json()
         assert data['success'] is True
         assert data['api_key']['name'] == 'test-key'
-        assert data['api_key']['key'].startswith('sk-')
+        assert data['api_key']['key'].startswith('etk_')
 
     def test_list_api_keys(self, client):
         """测试列出 API Keys"""
@@ -127,7 +127,7 @@ class TestAdminAPIKeyAPI:
 
     def test_revoke_nonexistent_key(self, client):
         """测试撤销不存在的 Key"""
-        response = client.post('/admin/keys/sk-nonexistent/revoke')
+        response = client.post('/admin/keys/etk_nonexistent/revoke')
         assert response.status_code == 404
 
 
