@@ -77,24 +77,27 @@ def main():
     app = create_app()
     
     # 打印启动信息
-    print("=" * 50)
-    print("Edge TTS Web Interface v2.0")
-    print("=" * 50)
-    print(f"环境: {config.env}")
-    print(f"端口: {config.server.port}")
-    print(f"本地访问: http://127.0.0.1:{config.server.port}")
-    print("-" * 50)
-    print("API 端点:")
-    print(f"  MCU API v1: /mcu/...")
-    print(f"  MCU API v2: /v2/mcu/... (带认证)")
-    print(f"  微信 API:   /wechat/...")
-    print(f"  健康检查:   /health")
-    print(f"  API 文档:   /docs")
-    print("-" * 50)
-    print("管理面板:")
-    print(f"  Dashboard:  /dashboard")
-    print(f"  默认密码:   admin123 (请修改 ADMIN_PASSWORD)")
-    print("=" * 50)
+    startup_info = f"""
+{'=' * 50}
+Edge TTS Web Interface v2.0
+{'=' * 50}
+环境: {config.env}
+端口: {config.server.port}
+本地访问: http://127.0.0.1:{config.server.port}
+{'-' * 50}
+API 端点:
+  MCU API v1: /mcu/...
+  MCU API v2: /v2/mcu/... (带认证)
+  微信 API:   /wechat/...
+  健康检查:   /health
+  API 文档:   /docs
+{'-' * 50}
+管理面板:
+  Dashboard:  /dashboard
+  默认密码:   admin123 (请修改 ADMIN_PASSWORD)
+{'=' * 50}
+"""
+    logger.info(startup_info)
     
     # 启动服务
     app.run(

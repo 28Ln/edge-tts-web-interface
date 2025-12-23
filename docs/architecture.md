@@ -6,27 +6,64 @@
 edge-tts-web-interface/
 ├── src/                      # 核心源码
 │   ├── api/                  # API 路由
-│   │   ├── __init__.py       # Flask 应用工厂
-│   │   └── mcu.py            # MCU API
+│   │   ├── admin/            # Admin API 模块
+│   │   ├── dashboard/        # Dashboard 管理面板
+│   │   ├── websocket/        # WebSocket 模块
+│   │   ├── v1/               # API v1 (兼容)
+│   │   ├── v2/               # API v2 (带认证)
+│   │   ├── health.py         # 健康检查
+│   │   └── openapi.py        # API 文档
 │   ├── services/             # 业务服务层
+│   │   ├── asr/              # ASR 引擎
 │   │   ├── ai_service.py     # AI 服务
 │   │   ├── asr_service.py    # 语音识别服务
-│   │   └── tts_service.py    # 语音合成服务
-│   ├── exceptions/           # 自定义异常
-│   │   └── errors.py         # 异常类定义
+│   │   ├── tts_service.py    # 语音合成服务
+│   │   └── session_store.py  # 会话存储
+│   ├── repositories/         # 数据访问层
+│   │   ├── user_repository.py
+│   │   ├── api_key_repository.py
+│   │   └── quota_repository.py
+│   ├── auth/                 # 认证模块
+│   │   ├── api_key.py        # API Key 管理
+│   │   ├── models.py         # 数据模型
+│   │   └── quota.py          # 配额管理
+│   ├── exceptions/           # 异常处理
+│   │   ├── errors.py         # 异常类
+│   │   └── handlers.py       # 全局处理器
 │   ├── utils/                # 工具函数
-│   │   └── logger.py         # 日志配置
+│   │   ├── audio.py          # 音频处理
+│   │   ├── logger.py         # 日志
+│   │   ├── middleware.py     # 中间件
+│   │   ├── retry.py          # 重试机制
+│   │   └── cleanup.py        # 清理任务
+│   ├── models/               # 数据模型
 │   ├── config.py             # 配置管理
-│   └── app.py                # 应用入口
+│   ├── constants.py          # 常量定义
+│   └── main.py               # 应用入口
+├── data/                     # 数据目录
+│   ├── auth.db               # 认证数据库
+│   ├── logs/                 # 日志文件
+│   ├── tts/                  # TTS 缓存
+│   └── uploads/              # 上传文件
 ├── docs/                     # 文档
+│   ├── api/                  # API 文档
+│   ├── architecture.md       # 架构文档
+│   ├── configuration.md      # 配置文档
+│   └── error-codes.md        # 错误码文档
+├── esp32-sdk/                # ESP32 SDK
+├── esp32s3/                  # ESP32-S3 固件
 ├── examples/                 # 示例代码
-│   ├── android/              # Android 示例
-│   └── python/               # Python 示例
+│   ├── android/
+│   ├── esp32/
+│   └── python/
+├── tests/                    # 测试
+│   ├── unit/                 # 单元测试
+│   ├── integration/          # 集成测试
+│   └── e2e/                  # 端到端测试
 ├── static/                   # 静态文件
 ├── templates/                # 模板文件
-├── tencent_asr/              # 腾讯云 ASR 客户端
-├── .env                      # 环境变量
-└── requirements.txt          # 依赖
+├── docker/                   # Docker 配置
+└── scripts/                  # 脚本
 ```
 
 ## 分层架构
@@ -35,11 +72,19 @@ edge-tts-web-interface/
 ┌─────────────────────────────────────┐
 │           API Layer (路由层)         │
 │  - 请求解析、参数验证、响应格式化      │
+│  - admin/, dashboard/, v1/, v2/     │
 └─────────────────┬───────────────────┘
                   │
 ┌─────────────────▼───────────────────┐
 │        Service Layer (服务层)        │
 │  - 业务逻辑、多引擎管理、上下文管理    │
+│  - ai_service, asr_service, tts     │
+└─────────────────┬───────────────────┘
+                  │
+┌─────────────────▼───────────────────┐
+│      Repository Layer (数据层)       │
+│  - 数据访问、CRUD 操作               │
+│  - user, api_key, quota             │
 └─────────────────┬───────────────────┘
                   │
 ┌─────────────────▼───────────────────┐
@@ -47,6 +92,19 @@ edge-tts-web-interface/
 │  - OpenAI API、腾讯云 ASR、Edge TTS  │
 └─────────────────────────────────────┘
 ```
+
+## API 端点
+
+| 端点 | 说明 |
+|------|------|
+| `/health` | 健康检查 |
+| `/mcu/*` | MCU API v1 (无认证) |
+| `/v2/mcu/*` | MCU API v2 (带认证) |
+| `/wechat/*` | 微信 API |
+| `/admin/*` | 管理 API |
+| `/dashboard/*` | 管理面板 |
+| `/docs` | API 文档 |
+| `/realtime` | WebSocket 测试 |
 
 ## 核心服务
 
@@ -82,6 +140,8 @@ class AppError(Exception):
 - `ASRError` - 语音识别错误 (500)
 - `AIError` - AI服务错误 (500)
 - `TTSError` - 语音合成错误 (500)
+- `AuthError` - 认证错误 (401)
+- `QuotaExceededError` - 配额超限 (429)
 
 ## 配置管理
 
@@ -100,3 +160,5 @@ class AppConfig:
 1. 环境变量 (优先)
 2. .env 文件
 3. 默认值
+
+详见 [配置文档](configuration.md)

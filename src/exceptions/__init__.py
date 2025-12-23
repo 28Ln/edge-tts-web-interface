@@ -23,6 +23,7 @@ from .errors import (
     AuthError,
     QuotaExceededError,
 )
+from .handlers import register_error_handlers
 
 __all__ = [
     'AppError',
@@ -44,4 +45,5 @@ __all__ = [
     'ConfigError',
     'AuthError',
     'QuotaExceededError',
+    'register_error_handlers',
 ]

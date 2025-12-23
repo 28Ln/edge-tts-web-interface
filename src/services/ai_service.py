@@ -215,12 +215,12 @@ IMPORTANT RULES:
         try:
             messages = self._get_messages(session_id, question, short)
             
+            # 移除不兼容的参数
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 stream=False,
-                timeout=self.timeout,
-                max_retries=self.max_retries
+                timeout=self.timeout
             )
             
             answer = response.choices[0].message.content
@@ -301,8 +301,7 @@ IMPORTANT RULES:
                 model=self.model,
                 messages=messages,
                 stream=True,
-                timeout=self.stream_timeout,
-                max_retries=self.max_retries
+                timeout=self.stream_timeout
             )
             
             for chunk in response:
