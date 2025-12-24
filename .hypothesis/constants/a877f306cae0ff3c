@@ -1,0 +1,4 @@
+# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\auth\api_key.py
+# hypothesis_version: 6.148.8
+
+[401, 403, ',', 'API Key 已过期', 'API Key 无效', 'API Key 格式错误', 'AUTH_FAILED', 'Authorization', 'Bearer ', 'PERMISSION_DENIED', 'X-API-Key', 'all', 'api_key', 'auth', 'error_code', 'etk_', 'message', 'success', '用户不存在', '用户已禁用', '缺少 API Key']

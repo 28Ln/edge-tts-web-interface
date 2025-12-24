@@ -1,0 +1,4 @@
+# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\billing\models.py
+# hypothesis_version: 6.148.8
+
+[0.0, 0.0005, 0.0008, 0.001, 0.005, 0.008, 0.01, 0.05, 0.08, 0.1, 100, 299, 600, 1000, 3600, 10000, 36000, 100000, 1000000, 10000000, ', ', '0', 'AUTH_DB_PATH', 'active', 'amount', 'auto_renew', 'balance', 'balance_after', 'basic', 'created_at', 'daily_audio_seconds', 'daily_requests', 'daily_tokens', 'data/auth.db', 'description', 'display_name', 'email_verified', 'end_date', 'enterprise', 'free', 'id', 'is_active', 'monthly_price', 'name', 'new_balance', 'password_hash', 'plan_id', 'plan_name', 'price_per_1k_tokens', 'price_per_request', 'pro', 'reference_id', 'start_date', 'status', 'subscription_id', 'success', 'type', 'updated_at', 'user_id', '专业版', '企业版', '余额不能为负数', '免费版', '基础功能，适合体验', '基础版', '适合个人开发者', '适合大型企业', '适合小型团队']

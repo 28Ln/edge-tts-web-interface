@@ -1,0 +1,4 @@
+# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\auth\auth_service.py
+# hypothesis_version: 6.148.8
+
+[0.0, 401, 3600, '.', '24', '=', '@', 'AUTH_REQUIRED', 'Authorization', 'Bearer ', 'HS256', 'INVALID_TOKEN', 'JWT', 'JWT_EXPIRY_HOURS', 'JWT_SECRET', 'SECRET_KEY', 'alg', 'all', 'api_key', 'auth.service', 'balance', 'created_at', 'default_jwt_secret', 'default_salt', 'email', 'email_verified', 'error_code', 'etk_', 'exp', 'expires_in', 'free', 'iat', 'id', 'message', 'password_hash', 'pbkdf2:sha256', 'secret', 'sub', 'success', 'token', 'typ', 'user', 'user_id', 'username', '原密码错误', '密码修改成功', '密码至少6个字符', '新密码至少6个字符', '无效或过期的 Token', '注册成功', '用户不存在', '用户名/邮箱或密码错误', '用户名已存在', '用户名至少3个字符', '登录成功', '邮箱已被注册', '邮箱格式不正确', '需要认证']

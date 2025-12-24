@@ -1,0 +1,4 @@
+# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\utils\audio.py
+# hypothesis_version: 6.148.8
+
+[b'ID3', b'RIFF', b'WAVE', b'\xff\xfb', 8000, 16000, '-ac', '-acodec', '-ar', '-i', '-y', '.audio', '.wav', 'audio', 'ffmpeg', 'pcm_s16le', 'rb', 'wb']

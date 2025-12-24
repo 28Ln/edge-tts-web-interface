@@ -1,0 +1,4 @@
+# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\auth\models.py
+# hypothesis_version: 6.148.8
+
+[600, 1000, 100000, '%Y-%m-%d', 'AUTH_DB_PATH', 'all', 'daily_audio_seconds', 'daily_requests', 'daily_tokens', 'data/auth.db', 'default', 'total_audio_seconds', 'total_requests', 'total_tokens']

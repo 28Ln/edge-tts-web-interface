@@ -79,6 +79,8 @@ def create_app() -> Flask:
     from .admin import admin_bp
     from .openapi import openapi_bp
     from .dashboard import dashboard_bp
+    from .auth import auth_bp
+    from .billing import billing_bp
     
     # v1 API (兼容旧版)
     from .v1.mcu import mcu_bp
@@ -88,6 +90,8 @@ def create_app() -> Flask:
     app.register_blueprint(wechat_bp)     # /wechat/*
     app.register_blueprint(health_bp)     # /health/*
     app.register_blueprint(admin_bp)      # /admin/*
+    app.register_blueprint(auth_bp)       # /auth/*
+    app.register_blueprint(billing_bp)    # /billing/*
     app.register_blueprint(openapi_bp)    # /docs, /openapi.json
     app.register_blueprint(dashboard_bp)  # /dashboard/*
     
