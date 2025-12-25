@@ -406,7 +406,24 @@ def voice_chat():
         asr_duration = (time.time() - asr_start) * 1000
         
         if not question or not question.strip():
-            raise ASRError("未识别到语音内容")
+            fallback = "我没听清，请再说一遍。"
+            logger.warning(f"[VOICE_CHAT] ASR 为空 | duration={asr_duration:.2f}ms")
+            if output_type == 'text':
+                total_duration = (time.time() - start_time) * 1000
+                logger.info(f"[VOICE_CHAT] 处理完成 | total_duration={total_duration:.2f}ms")
+                return jsonify({
+                    "success": False,
+                    "question": "",
+                    "answer": fallback,
+                })
+            else:
+                tts_start = time.time()
+                tts_service = get_tts_service()
+                file_path = tts_service.synthesize(fallback, output_format='wav')
+                tts_duration = (time.time() - tts_start) * 1000
+                total_duration = (time.time() - start_time) * 1000
+                logger.info(f"[VOICE_CHAT] 处理完成 | tts_duration={tts_duration:.2f}ms | total_duration={total_duration:.2f}ms")
+                return send_file(file_path, mimetype='audio/wav')
         
         logger.info(f"[VOICE_CHAT] ASR 完成 | question={question[:50]}... | duration={asr_duration:.2f}ms")
         

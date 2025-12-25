@@ -305,7 +305,24 @@ def register_mcu_routes(parent_bp: Blueprint):
             asr_duration = (time.time() - asr_start) * 1000
             
             if not question or not question.strip():
-                raise ASRError("未识别到语音内容")
+                fallback = "我没听清，请再说一遍。"
+                logger.warning(f"[VOICE_CHAT v2] ASR 为空 | user={g.current_user.username} | duration={asr_duration:.2f}ms")
+                if output_type == 'text':
+                    total_duration = (time.time() - start_time) * 1000
+                    logger.info(f"[VOICE_CHAT v2] 处理完成 | user={g.current_user.username} | total_duration={total_duration:.2f}ms")
+                    return jsonify(make_response({
+                        "question": "",
+                        "answer": fallback,
+                        "session": session_id,
+                    }))
+                else:
+                    tts_start = time.time()
+                    tts_service = get_tts_service()
+                    file_path = tts_service.synthesize(fallback, output_format='wav')
+                    tts_duration = (time.time() - tts_start) * 1000
+                    total_duration = (time.time() - start_time) * 1000
+                    logger.info(f"[VOICE_CHAT v2] 处理完成 | user={g.current_user.username} | tts_duration={tts_duration:.2f}ms | total_duration={total_duration:.2f}ms")
+                    return send_file(file_path, mimetype='audio/wav')
             
             logger.info(f"[VOICE_CHAT v2] ASR 完成 | user={g.current_user.username} | question={question[:50]} | duration={asr_duration:.2f}ms")
             
