@@ -76,20 +76,35 @@ class TTSService:
         voice: Optional[str] = None,
         output_format: str = "wav",
         filename: Optional[str] = None,
+        rate: Optional[int] = None,
+        volume: Optional[int] = None,
     ) -> str:
-        def _sapi_synthesize_wav(out_path: str) -> None:
+        def _sapi_synthesize_wav(out_path: str, sapi_rate: Optional[int], sapi_volume: Optional[int]) -> None:
             if os.name != "nt":
                 raise TTSError("SAPI TTS 仅支持 Windows")
+            if sapi_rate is not None:
+                sapi_rate = int(sapi_rate)
+                if sapi_rate < -10 or sapi_rate > 10:
+                    raise TTSError("SAPI rate 范围为 -10~10")
+            if sapi_volume is not None:
+                sapi_volume = int(sapi_volume)
+                if sapi_volume < 0 or sapi_volume > 100:
+                    raise TTSError("SAPI volume 范围为 0~100")
             out_path = os.path.abspath(out_path)
             out_dir = os.path.dirname(out_path)
             os.makedirs(out_dir, exist_ok=True)
-            ps = (
-                "Add-Type -AssemblyName System.Speech; "
-                "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-                f"$s.SetOutputToWaveFile('{out_path.replace("'", "''")}'); "
-                f"$s.Speak('{text.replace("'", "''")}'); "
-                "$s.Dispose();"
-            )
+            ps_parts = [
+                "Add-Type -AssemblyName System.Speech;",
+                "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;",
+            ]
+            if sapi_rate is not None:
+                ps_parts.append(f"$s.Rate={sapi_rate};")
+            if sapi_volume is not None:
+                ps_parts.append(f"$s.Volume={sapi_volume};")
+            ps_parts.append(f"$s.SetOutputToWaveFile('{out_path.replace("'", "''")}');")
+            ps_parts.append(f"$s.Speak('{text.replace("'", "''")}');")
+            ps_parts.append("$s.Dispose();")
+            ps = " ".join(ps_parts)
             subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
                 capture_output=True,
@@ -174,7 +189,7 @@ class TTSService:
 
         if output_format == "wav" and os.name == "nt":
             try:
-                _sapi_synthesize_wav(wav_path)
+                _sapi_synthesize_wav(wav_path, rate, volume)
                 duration = (time.time() - start_time) * 1000
                 logger.info(f"[TTS] SAPI success | path={wav_path} | duration={duration:.2f}ms")
                 return wav_path
@@ -195,7 +210,7 @@ class TTSService:
 
                     if output_format == "wav":
                         if not ffmpeg_bin:
-                            _sapi_synthesize_wav(wav_path)
+                            _sapi_synthesize_wav(wav_path, rate, volume)
                             last_err = None
                             break
                         # 转换为 WAV
@@ -248,7 +263,7 @@ class TTSService:
             logger.error(f"[TTS] 合成失败 | error={e} | duration={duration:.2f}ms")
             if output_format == "wav" and os.name == "nt":
                 try:
-                    _sapi_synthesize_wav(wav_path)
+                    _sapi_synthesize_wav(wav_path, rate, volume)
                     duration2 = (time.time() - start_time) * 1000
                     logger.info(f"[TTS] SAPI fallback success | path={wav_path} | duration={duration2:.2f}ms")
                     return wav_path

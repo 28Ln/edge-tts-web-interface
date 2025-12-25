@@ -190,6 +190,8 @@ def ask_tts():
         session_id = request.args.get('session', 'default')
         voice = request.args.get('voice', 'xiaoxiao')
         output_format = request.args.get('format', 'wav')
+        rate = request.args.get('rate', None)
+        volume = request.args.get('volume', None)
 
         if request.content_type and 'application/json' in request.content_type:
             try:
@@ -198,6 +200,8 @@ def ask_tts():
                 session_id = data.get('session', session_id)
                 voice = data.get('voice', voice)
                 output_format = data.get('format', output_format)
+                rate = data.get('rate', rate)
+                volume = data.get('volume', volume)
             except Exception as e:
                 logger.warning(f"[ASK_TTS] JSON 解析失败: {e}")
                 raise ValidationError("请求格式错误，需要 JSON 格式")
@@ -227,7 +231,13 @@ def ask_tts():
         logger.info(f"[ASK_TTS] answer: {_preview(answer)}")
 
         tts_service = get_tts_service()
-        file_path = tts_service.synthesize(answer, voice=voice, output_format=output_format)
+        file_path = tts_service.synthesize(
+            answer,
+            voice=voice,
+            output_format=output_format,
+            rate=int(rate) if rate is not None and str(rate).strip() != "" else None,
+            volume=int(volume) if volume is not None and str(volume).strip() != "" else None,
+        )
 
         duration = (time.time() - start_time) * 1000
         logger.info(f"[ASK_TTS] 处理完成 | answer_length={len(answer)} | file={file_path} | duration={duration:.2f}ms")
@@ -295,12 +305,16 @@ def tts():
             text = request.args.get('text', '')
             voice = request.args.get('voice', 'xiaoxiao')
             output_format = request.args.get('format', 'wav')
+            rate = request.args.get('rate', None)
+            volume = request.args.get('volume', None)
         else:
             try:
                 data = request.get_json() or {}
                 text = data.get('text', '')
                 voice = data.get('voice', 'xiaoxiao')
                 output_format = data.get('format', 'wav')
+                rate = data.get('rate', None)
+                volume = data.get('volume', None)
             except Exception as e:
                 logger.warning(f"[TTS] JSON 解析失败: {e}")
                 raise ValidationError("请求格式错误，需要 JSON 格式")
@@ -321,7 +335,13 @@ def tts():
         
         # 语音合成
         tts_service = get_tts_service()
-        file_path = tts_service.synthesize(text, voice=voice, output_format=output_format)
+        file_path = tts_service.synthesize(
+            text,
+            voice=voice,
+            output_format=output_format,
+            rate=int(rate) if rate is not None and str(rate).strip() != "" else None,
+            volume=int(volume) if volume is not None and str(volume).strip() != "" else None,
+        )
         
         duration = (time.time() - start_time) * 1000
         logger.info(f"[TTS] 处理完成 | file={file_path} | duration={duration:.2f}ms")
