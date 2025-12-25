@@ -6,6 +6,7 @@ MCU API v1 路由
 """
 
 import time
+import concurrent.futures
 from flask import Blueprint, request, jsonify, Response, send_file
 
 from ...services.ai_service import get_ai_service
@@ -133,7 +134,15 @@ def ask():
         
         # AI 问答
         ai_service = get_ai_service()
-        answer = ai_service.ask(question, session_id=session_id)
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(ai_service.ask, question, session_id=session_id)
+                answer = fut.result(timeout=12)
+        except concurrent.futures.TimeoutError:
+            duration = (time.time() - start_time) * 1000
+            logger.warning(f"[ASK] AI 请求超时，返回兜底文本 | duration={duration:.2f}ms")
+            fallback = "AI 服务暂时不可用，请稍后再试。"
+            return fallback, 200, {'Content-Type': 'text/plain; charset=utf-8'}
         
         duration = (time.time() - start_time) * 1000
         logger.info(f"[ASK] 处理完成 | answer_length={len(answer)} | duration={duration:.2f}ms")
@@ -147,13 +156,80 @@ def ask():
         
     except AIError as e:
         duration = (time.time() - start_time) * 1000
-        logger.error(f"[ASK] AI 服务失败 | error={e} | duration={duration:.2f}ms")
-        raise
+        logger.warning(f"[ASK] AI 不可用，返回兜底文本 | error={e} | duration={duration:.2f}ms")
+        fallback = "AI 服务暂时不可用，请稍后再试。"
+        return fallback, 200, {'Content-Type': 'text/plain; charset=utf-8'}
         
     except Exception as e:
         duration = (time.time() - start_time) * 1000
         logger.error(f"[ASK] 未知错误 | error={e} | duration={duration:.2f}ms", exc_info=True)
         raise AIError(f"AI 问答失败: {str(e)}")
+
+
+@mcu_bp.route('/ask_tts', methods=['POST'])
+def ask_tts():
+    start_time = time.time()
+
+    try:
+        session_id = request.args.get('session', 'default')
+        voice = request.args.get('voice', 'xiaoxiao')
+        output_format = request.args.get('format', 'wav')
+
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                data = request.get_json() or {}
+                question = data.get('question', '')
+                session_id = data.get('session', session_id)
+                voice = data.get('voice', voice)
+                output_format = data.get('format', output_format)
+            except Exception as e:
+                logger.warning(f"[ASK_TTS] JSON 解析失败: {e}")
+                raise ValidationError("请求格式错误，需要 JSON 格式")
+        else:
+            question = request.get_data(as_text=True)
+
+        if not question or not question.strip():
+            raise ValidationError("问题内容为空")
+
+        question = question.strip()
+        if len(question) > MAX_QUESTION_LENGTH:
+            raise ValidationError(f"问题过长，最大支持 {MAX_QUESTION_LENGTH} 字符")
+
+        if output_format not in ['wav', 'mp3']:
+            raise ValidationError("不支持的音频格式，仅支持 wav 和 mp3")
+
+        logger.info(f"[ASK_TTS] 开始处理 | session={session_id} | question_length={len(question)} | voice={voice} | format={output_format}")
+
+        ai_service = get_ai_service()
+        try:
+            answer = ai_service.ask(question, session_id=session_id)
+        except AIError as e:
+            logger.warning(f"[ASK_TTS] AI 不可用，使用兜底文本 | error={e}")
+            answer = f"AI 服务暂时不可用。我先复述你的问题：{question}。请稍后再试。"
+
+        tts_service = get_tts_service()
+        file_path = tts_service.synthesize(answer, voice=voice, output_format=output_format)
+
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[ASK_TTS] 处理完成 | answer_length={len(answer)} | file={file_path} | duration={duration:.2f}ms")
+
+        mimetype = 'audio/wav' if output_format == 'wav' else 'audio/mpeg'
+        return send_file(file_path, mimetype=mimetype)
+
+    except ValidationError as e:
+        duration = (time.time() - start_time) * 1000
+        logger.warning(f"[ASK_TTS] 验证失败 | error={e} | duration={duration:.2f}ms")
+        raise
+
+    except (AIError, TTSError) as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[ASK_TTS] 处理失败 | error={e} | duration={duration:.2f}ms")
+        raise
+
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"[ASK_TTS] 未知错误 | error={e} | duration={duration:.2f}ms", exc_info=True)
+        raise TTSError(f"语音合成失败: {str(e)}")
 
 
 @mcu_bp.route('/ask_stream', methods=['POST'])
@@ -181,7 +257,8 @@ def ask_stream():
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"[ASK_STREAM] 错误: {e}")
-            yield f"data: [ERROR] {str(e)}\n\n"
+            yield "data: AI 服务暂时不可用，请稍后再试。\n\n"
+            yield "data: [DONE]\n\n"
     
     return Response(generate(), mimetype='text/event-stream')
 

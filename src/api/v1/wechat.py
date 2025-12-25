@@ -174,7 +174,11 @@ def wechat_chat():
         
         # AI 问答
         ai_service = get_ai_service()
-        answer = ai_service.ask(message, session_id=session_id, short=True)
+        try:
+            answer = ai_service.ask(message, session_id=session_id, short=True)
+        except AIError as e:
+            logger.error(f"[微信-文字] AI 失败，返回兜底回复 | error={e}")
+            answer = "AI 服务暂时不可用，请稍后再试。"
         
         duration = (time.time() - start_time) * 1000
         logger.info(f"[微信-文字] 处理完成 | answer_length={len(answer)} | duration={duration:.2f}ms")
@@ -188,11 +192,6 @@ def wechat_chat():
     except ValidationError as e:
         duration = (time.time() - start_time) * 1000
         logger.warning(f"[微信-文字] 验证失败 | error={e} | duration={duration:.2f}ms")
-        raise
-        
-    except AIError as e:
-        duration = (time.time() - start_time) * 1000
-        logger.error(f"[微信-文字] AI 失败 | error={e} | duration={duration:.2f}ms")
         raise
         
     except Exception as e:
@@ -233,6 +232,8 @@ def wechat_voice():
             wav_data, error = convert_amr_to_wav(audio_data)
             if error:
                 raise AudioError(error)
+        elif audio_data.startswith(b'RIFF'):
+            wav_data = audio_data
         else:
             asr_service = get_asr_service()
             wav_data = asr_service.convert_to_wav(audio_data)
@@ -285,22 +286,35 @@ def wechat_stt():
     """微信小程序语音转文字接口"""
     audio_format = request.args.get('format', 'amr')
     engine = request.args.get('engine', 'tencent')
-    
-    audio_data = request.get_data()
-    if not audio_data:
-        raise ValidationError("音频数据为空")
-    
-    # 转换格式
-    if audio_format in ['amr', 'silk']:
-        wav_data, error = convert_amr_to_wav(audio_data)
-        if error:
-            return jsonify({"success": False, "error": error}), 500
-    else:
+
+    try:
+        audio_data = request.get_data()
+        if not audio_data:
+            raise ValidationError("音频数据为空")
+
+        # 转换格式
+        if audio_format in ['amr', 'silk']:
+            wav_data, error = convert_amr_to_wav(audio_data)
+            if error:
+                raise AudioError(error)
+        elif audio_data.startswith(b'RIFF'):
+            wav_data = audio_data
+        else:
+            asr_service = get_asr_service()
+            wav_data = asr_service.convert_to_wav(audio_data)
+
+        # 识别
         asr_service = get_asr_service()
-        wav_data = asr_service.convert_to_wav(audio_data)
-    
-    # 识别
-    asr_service = get_asr_service()
-    text = asr_service.recognize(wav_data, engine=engine)
-    
-    return jsonify({"success": True, "text": text or ""})
+        text = asr_service.recognize(wav_data, engine=engine)
+
+        return jsonify({"success": True, "text": text or ""})
+
+    except ValidationError as e:
+        logger.warning(f"[微信-STT] 验证失败 | error={e}")
+        return jsonify({"success": True, "text": ""}), 200
+    except (ASRError, AudioError) as e:
+        logger.warning(f"[微信-STT] 音频处理失败，返回空文本 | error={e}")
+        return jsonify({"success": True, "text": ""}), 200
+    except Exception as e:
+        logger.error(f"[微信-STT] 未知错误，返回空文本 | error={e}", exc_info=True)
+        return jsonify({"success": True, "text": ""}), 200

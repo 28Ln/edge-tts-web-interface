@@ -5,6 +5,8 @@
 import os
 import time
 import subprocess
+import shutil
+import time as _time
 from typing import Optional, Dict, List
 
 from ..config import get_config
@@ -75,6 +77,26 @@ class TTSService:
         output_format: str = "wav",
         filename: Optional[str] = None,
     ) -> str:
+        def _sapi_synthesize_wav(out_path: str) -> None:
+            if os.name != "nt":
+                raise TTSError("SAPI TTS 仅支持 Windows")
+            out_path = os.path.abspath(out_path)
+            out_dir = os.path.dirname(out_path)
+            os.makedirs(out_dir, exist_ok=True)
+            ps = (
+                "Add-Type -AssemblyName System.Speech; "
+                "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+                f"$s.SetOutputToWaveFile('{out_path.replace("'", "''")}'); "
+                f"$s.Speak('{text.replace("'", "''")}'); "
+                "$s.Dispose();"
+            )
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=self.timeout,
+            )
         """
         将文本合成为语音文件
         
@@ -115,6 +137,21 @@ class TTSService:
             raise TTSVoiceNotFound(f"未知语音: {voice}")
         
         logger.info(f"[TTS] 合成请求 | text_length={len(text)} | voice={voice} | format={output_format}")
+
+        edge_tts_bin = shutil.which("edge-tts")
+        if not edge_tts_bin:
+            raise TTSError("找不到 edge-tts 可执行文件（请在后端环境安装：pip install edge-tts，并确保命令行可用）")
+        ffmpeg_bin = None
+        if output_format == "wav":
+            ffmpeg_bin = shutil.which("ffmpeg")
+            if not ffmpeg_bin:
+                try:
+                    import imageio_ffmpeg  # type: ignore
+
+                    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+                    logger.info(f"[TTS] using bundled ffmpeg from imageio-ffmpeg: {ffmpeg_bin}")
+                except Exception:
+                    ffmpeg_bin = None
         
         # 生成文件名
         if filename is None:
@@ -122,20 +159,55 @@ class TTSService:
         
         mp3_path = os.path.join(self.output_dir, f"{filename}.mp3")
         wav_path = os.path.join(self.output_dir, f"{filename}.wav")
-        
+
+        mp3_path = os.path.abspath(mp3_path)
+        wav_path = os.path.abspath(wav_path)
+
+        proxy_hint = {
+            "HTTP_PROXY": os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"),
+            "HTTPS_PROXY": os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"),
+            "NO_PROXY": os.environ.get("NO_PROXY") or os.environ.get("no_proxy"),
+        }
+        if any(proxy_hint.values()):
+            logger.info(f"[TTS] proxy env detected: {proxy_hint}")
+        edge_proxy = proxy_hint.get("HTTPS_PROXY") or proxy_hint.get("HTTP_PROXY")
+
         try:
-            # 使用 edge-tts 生成 MP3
-            cmd = ["edge-tts", "--voice", voice_name, "--text", text, "--write-media", mp3_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=self.timeout)
-            
-            if output_format == "wav":
-                # 转换为 WAV
-                subprocess.run([
-                    "ffmpeg", "-i", mp3_path,
-                    "-ac", "1", "-ar", "16000", "-acodec", "pcm_s16le",
-                    "-y", wav_path
-                ], capture_output=True, check=True, timeout=self.ffmpeg_timeout)
+            last_err: Optional[Exception] = None
+            attempts = max(1, int(self.max_retries) + 1)
+            for attempt in range(1, attempts + 1):
+                try:
+                    # 使用 edge-tts 生成 MP3
+                    cmd = [edge_tts_bin, "--voice", voice_name, "--text", text, "--write-media", mp3_path]
+                    if edge_proxy:
+                        cmd.extend(["--proxy", edge_proxy])
+                    logger.info(f"[TTS] attempt {attempt}/{attempts} exec: {' '.join(cmd[:4])} ... --write-media {mp3_path}")
+                    subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=self.timeout)
+
+                    if output_format == "wav":
+                        if not ffmpeg_bin:
+                            _sapi_synthesize_wav(wav_path)
+                            last_err = None
+                            break
+                        # 转换为 WAV
+                        ff_cmd = [
+                            ffmpeg_bin, "-i", mp3_path,
+                            "-ac", "1", "-ar", "16000", "-acodec", "pcm_s16le",
+                            "-y", wav_path,
+                        ]
+                        subprocess.run(ff_cmd, capture_output=True, check=True, timeout=self.ffmpeg_timeout)
+                    last_err = None
+                    break
+                except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+                    last_err = e
+                    if attempt < attempts:
+                        _time.sleep(float(self.retry_delay))
+                        continue
+                    raise
+            if last_err is not None:
+                raise last_err
                 
+            if output_format == "wav":
                 # 删除临时 MP3
                 if os.path.exists(mp3_path):
                     try:
@@ -158,8 +230,25 @@ class TTSService:
             
         except subprocess.CalledProcessError as e:
             duration = (time.time() - start_time) * 1000
+            stderr = (e.stderr or "").strip()
+            stdout = (e.stdout or "").strip()
+            if stdout:
+                logger.error(f"[TTS] stdout: {stdout}")
+            if stderr:
+                logger.error(f"[TTS] stderr: {stderr}")
             logger.error(f"[TTS] 合成失败 | error={e} | duration={duration:.2f}ms")
-            raise TTSError(f"语音合成失败: {e}")
+            if output_format == "wav" and os.name == "nt":
+                try:
+                    _sapi_synthesize_wav(wav_path)
+                    duration2 = (time.time() - start_time) * 1000
+                    logger.info(f"[TTS] SAPI fallback success | path={wav_path} | duration={duration2:.2f}ms")
+                    return wav_path
+                except Exception as e2:
+                    logger.error(f"[TTS] SAPI fallback failed | error={e2}", exc_info=True)
+            msg = f"语音合成失败: {e}"
+            if stderr:
+                msg = f"{msg} | stderr={stderr}"
+            raise TTSError(msg)
             
         except Exception as e:
             duration = (time.time() - start_time) * 1000

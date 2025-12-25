@@ -5,6 +5,8 @@ AI 服务
 
 import time
 from datetime import datetime
+import os
+import re
 from typing import Generator, Optional, List, Dict, Any
 from openai import OpenAI
 from openai import APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
@@ -46,9 +48,15 @@ class AIService:
     
     def __init__(self) -> None:
         config = get_config()
-        self.client = OpenAI(
-            base_url=config.ai.api_base,
-            api_key=config.ai.api_key,
+        self._enabled = bool(config.ai.api_base and config.ai.api_key)
+
+        self.client = (
+            OpenAI(
+                base_url=config.ai.api_base,
+                api_key=config.ai.api_key,
+            )
+            if self._enabled
+            else None
         )
         self.model = config.ai.model
         self.max_history = config.ai.max_history
@@ -56,9 +64,86 @@ class AIService:
         self.stream_timeout = config.ai.stream_timeout
         self.max_retries = config.ai.max_retries
         self.retry_delay = config.ai.retry_delay
+
+        if self._enabled:
+            self.model = self._select_working_model(self.model)
         
         # 使用会话存储（支持内存/Redis）
         self._session_store = get_session_store()
+
+    @staticmethod
+    def _normalize_model_name(model: str) -> str:
+        model = (model or "").strip()
+        # 支持形如 [y1]gemini-2.5-flash-2 这种标记
+        model = re.sub(r"^\[[^\]]+\]", "", model).strip()
+        return model
+
+    def _get_model_candidates(self, configured_model: str) -> List[str]:
+        raw = (
+            os.environ.get("AI_MODEL_FALLBACKS")
+            or os.environ.get("GEMINI_MODEL_FALLBACKS")
+            or ""
+        )
+
+        if raw.strip():
+            items = [self._normalize_model_name(x) for x in raw.split(",")]
+            return [x for x in items if x]
+
+        # 默认优先级（你要求的顺序）
+        defaults = [
+            "deepseek-r1-search",
+            "gemini-2.5-flash-2",
+            "deepseek-v3",
+            "gemini-2.5-pro-aistudio-8",
+        ]
+
+        configured = self._normalize_model_name(configured_model)
+        if configured and configured not in defaults:
+            return [configured] + defaults
+        return defaults
+
+    def _probe_model(self, model: str) -> bool:
+        """轻量探针：验证模型是否可用。失败不抛出（认证错误除外）。"""
+        try:
+            # 尽量减少成本/延迟
+            self.client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "ping"}],
+                stream=False,
+                timeout=min(8, int(self.timeout) if self.timeout else 8),
+                max_tokens=1,
+            )
+            return True
+        except AuthenticationError:
+            # 密钥不对时继续重试其它模型没有意义
+            raise
+        except Exception:
+            return False
+
+    def _select_working_model(self, configured_model: str) -> str:
+        candidates = self._get_model_candidates(configured_model)
+        # 保底：至少尝试 configured_model
+        configured_norm = self._normalize_model_name(configured_model)
+        if configured_norm and configured_norm not in candidates:
+            candidates.insert(0, configured_norm)
+
+        for m in candidates:
+            if not m:
+                continue
+            try:
+                ok = self._probe_model(m)
+            except AuthenticationError as e:
+                logger.error(f"[AI] 模型探测认证失败 | model={m} | error={e}")
+                return configured_norm or m
+            if ok:
+                if m != configured_norm:
+                    logger.warning(f"[AI] 自动切换模型 | from={configured_norm or 'unset'} | to={m}")
+                else:
+                    logger.info(f"[AI] 模型可用 | model={m}")
+                return m
+
+        logger.warning(f"[AI] 所有候选模型探测失败，保留当前配置 | model={configured_norm}")
+        return configured_norm
     
     def get_system_prompt(self, short: bool = False) -> str:
         """
@@ -211,6 +296,11 @@ IMPORTANT RULES:
         """
         start_time = time.time()
         logger.info(f"[AI] 问答请求 | session={session_id} | question_length={len(question)}")
+
+        if not self._enabled:
+            answer = "AI 服务未配置，暂时返回兜底回复。"
+            self._save_history(session_id, question, answer)
+            return answer
         
         try:
             messages = self._get_messages(session_id, question, short)
@@ -292,6 +382,12 @@ IMPORTANT RULES:
         """
         start_time = time.time()
         logger.info(f"[AI] 流式问答 | session={session_id} | question_length={len(question)}")
+
+        if not self._enabled:
+            answer = "AI 服务未配置，暂时返回兜底回复。"
+            self._save_history(session_id, question, answer)
+            yield answer
+            return
         
         messages = self._get_messages(session_id, question)
         full_answer = []

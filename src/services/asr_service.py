@@ -99,8 +99,13 @@ class VoskEngine(ASREngine):
             try:
                 from vosk import Model
                 if os.path.exists(self.model_path):
-                    self._model = Model(self.model_path)
-                    self._available = True
+                    try:
+                        self._model = Model(self.model_path)
+                        self._available = True
+                    except Exception as e:
+                        logger.warning(f"[ASR] Vosk 模型加载失败，标记为不可用 | path={self.model_path} | error={e}")
+                        self._model = None
+                        self._available = False
                 else:
                     self._available = False
             except ImportError:
