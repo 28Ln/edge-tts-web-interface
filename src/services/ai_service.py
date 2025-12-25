@@ -66,6 +66,10 @@ class AIService:
         self.retry_delay = config.ai.retry_delay
 
         if self._enabled:
+            env_fallbacks = os.environ.get("AI_MODEL_FALLBACKS") or os.environ.get("GEMINI_MODEL_FALLBACKS")
+            logger.info(
+                f"[AI] model config | configured={self.model} | env_fallbacks={'set' if (env_fallbacks and env_fallbacks.strip()) else 'unset'}"
+            )
             self.model = self._select_working_model(self.model)
         
         # 使用会话存储（支持内存/Redis）
@@ -87,20 +91,28 @@ class AIService:
 
         if raw.strip():
             items = [self._normalize_model_name(x) for x in raw.split(",")]
-            return [x for x in items if x]
-
-        # 默认优先级（你要求的顺序）
-        defaults = [
-            "deepseek-r1-search",
-            "gemini-2.5-flash-2",
-            "deepseek-v3",
-            "gemini-2.5-pro-aistudio-8",
-        ]
+            candidates = [x for x in items if x]
+        else:
+            # 默认候选
+            candidates = [
+                "deepseek-r1-search",
+                "gemini-2.5-flash-2",
+                "deepseek-v3",
+                "gemini-2.5-pro-aistudio-8",
+            ]
 
         configured = self._normalize_model_name(configured_model)
-        if configured and configured not in defaults:
-            return [configured] + defaults
-        return defaults
+        # 关键：无论默认列表/环境变量顺序如何，都优先尝试配置的默认模型
+        if configured:
+            candidates = [configured] + [x for x in candidates if x and x != configured]
+        # 去重并保持顺序
+        seen = set()
+        ordered: List[str] = []
+        for x in candidates:
+            if x and x not in seen:
+                seen.add(x)
+                ordered.append(x)
+        return ordered
 
     def _probe_model(self, model: str) -> bool:
         """轻量探针：验证模型是否可用。失败不抛出（认证错误除外）。"""

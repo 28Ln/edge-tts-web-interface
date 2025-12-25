@@ -106,6 +106,12 @@ def stt():
 def ask():
     """AI 问答（非流式）"""
     start_time = time.time()
+
+    def _preview(text: str, n: int = 200) -> str:
+        text = (text or "").replace("\r", " ").replace("\n", " ").strip()
+        if len(text) <= n:
+            return text
+        return text[: n - 3] + "..."
     
     try:
         session_id = request.args.get('session', 'default')
@@ -131,6 +137,7 @@ def ask():
             raise ValidationError(f"问题过长，最大支持 {MAX_QUESTION_LENGTH} 字符")
         
         logger.info(f"[ASK] 开始处理 | session={session_id} | question_length={len(question)}")
+        logger.info(f"[ASK] question: {_preview(question)}")
         
         # AI 问答
         ai_service = get_ai_service()
@@ -142,10 +149,12 @@ def ask():
             duration = (time.time() - start_time) * 1000
             logger.warning(f"[ASK] AI 请求超时，返回兜底文本 | duration={duration:.2f}ms")
             fallback = "AI 服务暂时不可用，请稍后再试。"
+            logger.info(f"[ASK] answer(fallback): {_preview(fallback)}")
             return fallback, 200, {'Content-Type': 'text/plain; charset=utf-8'}
         
         duration = (time.time() - start_time) * 1000
         logger.info(f"[ASK] 处理完成 | answer_length={len(answer)} | duration={duration:.2f}ms")
+        logger.info(f"[ASK] answer: {_preview(answer)}")
         
         return answer, 200, {'Content-Type': 'text/plain; charset=utf-8'}
         
@@ -158,6 +167,7 @@ def ask():
         duration = (time.time() - start_time) * 1000
         logger.warning(f"[ASK] AI 不可用，返回兜底文本 | error={e} | duration={duration:.2f}ms")
         fallback = "AI 服务暂时不可用，请稍后再试。"
+        logger.info(f"[ASK] answer(fallback): {_preview(fallback)}")
         return fallback, 200, {'Content-Type': 'text/plain; charset=utf-8'}
         
     except Exception as e:
@@ -169,6 +179,12 @@ def ask():
 @mcu_bp.route('/ask_tts', methods=['POST'])
 def ask_tts():
     start_time = time.time()
+
+    def _preview(text: str, n: int = 200) -> str:
+        text = (text or "").replace("\r", " ").replace("\n", " ").strip()
+        if len(text) <= n:
+            return text
+        return text[: n - 3] + "..."
 
     try:
         session_id = request.args.get('session', 'default')
@@ -199,6 +215,7 @@ def ask_tts():
             raise ValidationError("不支持的音频格式，仅支持 wav 和 mp3")
 
         logger.info(f"[ASK_TTS] 开始处理 | session={session_id} | question_length={len(question)} | voice={voice} | format={output_format}")
+        logger.info(f"[ASK_TTS] question: {_preview(question)}")
 
         ai_service = get_ai_service()
         try:
@@ -206,6 +223,8 @@ def ask_tts():
         except AIError as e:
             logger.warning(f"[ASK_TTS] AI 不可用，使用兜底文本 | error={e}")
             answer = f"AI 服务暂时不可用。我先复述你的问题：{question}。请稍后再试。"
+
+        logger.info(f"[ASK_TTS] answer: {_preview(answer)}")
 
         tts_service = get_tts_service()
         file_path = tts_service.synthesize(answer, voice=voice, output_format=output_format)
