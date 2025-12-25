@@ -172,6 +172,15 @@ class TTSService:
             logger.info(f"[TTS] proxy env detected: {proxy_hint}")
         edge_proxy = proxy_hint.get("HTTPS_PROXY") or proxy_hint.get("HTTP_PROXY")
 
+        if output_format == "wav" and os.name == "nt":
+            try:
+                _sapi_synthesize_wav(wav_path)
+                duration = (time.time() - start_time) * 1000
+                logger.info(f"[TTS] SAPI success | path={wav_path} | duration={duration:.2f}ms")
+                return wav_path
+            except Exception as e:
+                logger.error(f"[TTS] SAPI failed, fallback to edge-tts | error={e}")
+
         try:
             last_err: Optional[Exception] = None
             attempts = max(1, int(self.max_retries) + 1)
