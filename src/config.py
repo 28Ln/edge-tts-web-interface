@@ -31,7 +31,7 @@ class AIConfig:
     """AI 服务配置"""
     api_base: str = ""
     api_key: str = ""
-    model: str = "deepseek-r1-search"
+    model: str = "deepseek-v3"
     timeout: int = 30  # AI 服务超时（秒）
     stream_timeout: int = 60  # 流式响应超时（秒）
     max_history: int = 2  # 保留最近几轮对话
