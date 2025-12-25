@@ -129,7 +129,7 @@ def load_config(env: str = None) -> AppConfig:
     # AI 配置 (支持新旧环境变量名)
     config.ai.api_base = os.environ.get("AI_API_BASE") or os.environ.get("GEMINI_API_BASE", "")
     config.ai.api_key = os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
-    config.ai.model = os.environ.get("AI_MODEL") or os.environ.get("GEMINI_MODEL", "deepseek-r1-search")
+    config.ai.model = os.environ.get("AI_MODEL") or os.environ.get("GEMINI_MODEL", "deepseek-v3")
     
     # ASR 配置
     config.asr.tencent_secret_id = os.environ.get("TENCENT_SECRET_ID", "")
