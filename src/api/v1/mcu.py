@@ -398,6 +398,22 @@ def voice_chat():
             raise ValidationError(f"音频文件过大，最大支持 {MAX_AUDIO_SIZE // 1024 // 1024}MB")
         
         logger.info(f"[VOICE_CHAT] 开始处理 | engine={engine} | out={output_type} | audio_size={len(audio_data)}")
+
+        try:
+            save_dir = os.environ.get("VOICE_CHAT_RECORDINGS_DIR") or os.path.join(os.getcwd(), "recordings", "voice_chat")
+            os.makedirs(save_dir, exist_ok=True)
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            safe_engine = "".join([c for c in (engine or "") if c.isalnum() or c in ("-", "_")]) or "engine"
+            safe_session = "".join([c for c in (session_id or "") if c.isalnum() or c in ("-", "_")]) or "default"
+            ext = (audio_format or "wav").lower()
+            if ext not in ("wav", "mp3", "pcm", "m4a", "aac", "ogg"):
+                ext = "bin"
+            save_path = os.path.join(save_dir, f"{ts}_{safe_engine}_{safe_session}.{ext}")
+            with open(save_path, "wb") as f:
+                f.write(audio_data)
+            logger.info(f"[VOICE_CHAT] audio saved: {save_path}")
+        except Exception as e:
+            logger.warning(f"[VOICE_CHAT] audio save failed: {e}")
         
         # 1. 语音识别
         asr_start = time.time()
