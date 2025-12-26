@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\utils\logger.py
-# hypothesis_version: 6.148.8
-
-[' | ', '%Y-%m-%d %H:%M:%S', '***API_KEY***', 'CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'LOG_FILE', 'LOG_FORMAT', 'LOG_LEVEL', 'WARNING', '\\1***REDACTED***', 'ai', 'api', 'app', 'asr', 'duration_ms', 'error', 'exception', 'info', 'json', 'level', 'logger', 'message', 'request_id', 'service', 'text', 'time', 'tts', 'user', 'utf-8']

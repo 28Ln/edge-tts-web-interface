@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\exceptions\__init__.py
-# hypothesis_version: 6.148.8
-
-['AIConnectionError', 'AIError', 'AIInvalidKeyError', 'AIRateLimitError', 'AITimeoutError', 'ASRError', 'ASRFormatError', 'ASRNetworkError', 'ASRTimeoutError', 'AppError', 'AudioError', 'AuthError', 'ConfigError', 'QuotaExceededError', 'TTSError', 'TTSTimeoutError', 'TTSVoiceNotFound', 'ValidationError']

@@ -27,6 +27,11 @@ class User:
     daily_requests: int = 1000      # 每日请求数
     daily_tokens: int = 100000      # 每日 Token 数
     daily_audio_seconds: int = 600  # 每日音频秒数 (10分钟)
+    
+    # 计费相关（由 billing 模块添加）
+    balance: float = 0.0            # 账户余额
+    email_verified: bool = False    # 邮箱是否验证
+    password_hash: Optional[str] = None  # 密码哈希
 
 
 @dataclass

@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\billing\service.py
-# hypothesis_version: 6.148.8
-
-[100, 1000, 10000, 999999, 'active', 'allowed', 'amount', 'audio_seconds', 'balance', 'balance_after', 'billing', 'can_pay', 'consume', 'cost', 'created_at', 'daily_audio_seconds', 'daily_requests', 'daily_tokens', 'deducted', 'description', 'display_name', 'downgraded', 'end_date', 'expired', 'free', 'id', 'limit', 'message', 'new_balance', 'page', 'plan', 'previous_plan', 'processed', 'quota', 'recharge', 'remaining', 'requests', 'status', 'subscribe', 'subscription', 'subscription_id', 'success', 'today_usage', 'tokens', 'total_audio_seconds', 'total_requests', 'total_tokens', 'transactions', 'type', 'used', '余额不足', '充值成功', '充值金额必须大于0', '免费版', '只能升级到更高级的套餐', '已取消订阅，将在到期后降级为免费版', '无有效订阅', '没有活跃的订阅', '订阅成功', '该套餐已下架']

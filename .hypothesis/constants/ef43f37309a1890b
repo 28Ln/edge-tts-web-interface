@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\utils\__init__.py
-# hypothesis_version: 6.148.8
-
-['get_logger', 'get_request_id', 'register_middleware', 'setup_logger', 'timed']

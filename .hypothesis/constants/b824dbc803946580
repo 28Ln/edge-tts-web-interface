@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\auth\admin_auth.py
-# hypothesis_version: 6.148.8
-
-[401, 403, 'ADMIN_AUTH_REQUIRED', 'ADMIN_PASSWORD', 'API Key 已重新生成', 'Authorization', 'Bearer ', 'INVALID_ADMIN_KEY', 'SUPER_ADMIN_REQUIRED', 'X-Admin-Key', 'adm_', 'admin', 'admin123', 'admin_id', 'admin_key', 'api_key', 'auth.admin', 'created_at', 'error_code', 'id', 'is_active', 'is_super', 'last_login', 'message', 'password_hash', 'pbkdf2:sha256', 'success', 'username', '无效的管理员 API Key', '管理员不存在', '管理员创建成功', '需要管理员认证', '需要超级管理员权限']

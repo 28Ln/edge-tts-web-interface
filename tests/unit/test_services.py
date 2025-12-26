@@ -57,6 +57,7 @@ class TestAIService:
             mock_config.return_value.ai.api_key = 'test_key'
             mock_config.return_value.ai.model = 'test-model'
             mock_config.return_value.ai.max_history = 10
+            mock_config.return_value.ai.timeout = 30
             
             mock_client = Mock()
             mock_response = Mock()
@@ -71,6 +72,10 @@ class TestAIService:
                     
                     from src.services.ai_service import AIService
                     service = AIService()
+                    
+                    # 重置 mock 调用计数，因为 AIService 初始化时会调用 ping
+                    mock_client.chat.completions.create.reset_mock()
+                    
                     answer = service.ask('你好', session_id='test')
                     
                     assert answer == '这是AI的回答'

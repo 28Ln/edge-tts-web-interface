@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\auth\__init__.py
-# hypothesis_version: 6.148.8
-
-['ApiKey', 'QuotaManager', 'UsageRecord', 'User', 'check_quota', 'generate_api_key', 'record_usage', 'require_api_key', 'verify_api_key']

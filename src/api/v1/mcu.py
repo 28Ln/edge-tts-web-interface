@@ -5,6 +5,7 @@ MCU API v1 路由
 注意: 此为 v1 API，建议迁移到 /v2/mcu/* (带认证和计费)
 """
 
+import os
 import time
 import concurrent.futures
 from flask import Blueprint, request, jsonify, Response, send_file

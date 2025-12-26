@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\exceptions\errors.py
-# hypothesis_version: 6.148.8
-
-[400, 401, 404, 429, 500, 503, 504, 'AI_CONNECTION_ERROR', 'AI_INVALID_KEY', 'AI_RATE_LIMIT', 'AI_REQUEST_FAILED', 'AI_TIMEOUT', 'AI服务不可用', 'AI服务密钥无效', 'AI服务请求超时', 'AI服务请求过于频繁', 'AI服务调用失败', 'AI服务连接失败', 'AI请求失败', 'AI请求超时', 'ASR_FORMAT_ERROR', 'ASR_NETWORK_ERROR', 'ASR_NO_RESULT', 'ASR_RECOGNIZE_FAILED', 'ASR_TIMEOUT', 'AUDIO_CONVERT_ERROR', 'AUDIO_EMPTY', 'AUDIO_FORMAT_ERROR', 'CONFIG_ERROR', 'INTERNAL_ERROR', 'NOT_FOUND', 'TTS_GENERATE_FAILED', 'TTS_TIMEOUT', 'TTS_VOICE_NOT_FOUND', 'VALIDATION_ERROR', 'details', 'error_code', 'message', 'success', '参数验证失败', '服务器内部错误', '未识别到语音内容', '认证失败', '语音不存在', '语音合成失败', '语音合成服务不可用', '语音合成超时', '语音识别失败', '语音识别引擎不可用', '语音识别网络错误', '语音识别超时', '资源不存在', '配置错误', '配额已用尽', '音频处理失败', '音频数据为空', '音频格式不支持', '音频格式错误', '音频转换失败']

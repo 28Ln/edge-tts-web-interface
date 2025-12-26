@@ -1,4 +1,0 @@
-# file: C:\Users\Administrator\Desktop\edge-tts-web-interface\src\auth\quota.py
-# hypothesis_version: 6.148.8
-
-[429, '%Y-%m-%d', 'QUOTA_EXCEEDED', 'audio_seconds', 'current_api_key', 'current_user', 'date', 'error_code', 'limit', 'message', 'quota', 'remaining', 'requests', 'success', 'tokens', 'total_audio_seconds', 'total_requests', 'total_tokens', 'type', 'used']

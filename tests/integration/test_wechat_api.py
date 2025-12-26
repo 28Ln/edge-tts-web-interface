@@ -47,9 +47,13 @@ class TestWechatAPI:
             assert data['session_id'] == 'test_session'
 
     def test_stt_empty_audio(self, client):
-        """测试空音频"""
+        """测试空音频 - 微信 STT 优雅降级返回空文本"""
         response = client.post('/wechat/stt')
-        assert response.status_code == 400
+        # 微信 STT 设计为优雅降级：空音频返回 200 + 空文本
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['text'] == ''
 
     def test_stt_success(self, client):
         """测试语音转文字成功"""

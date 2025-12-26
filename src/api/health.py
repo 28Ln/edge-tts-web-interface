@@ -2,12 +2,13 @@
 健康检查 API
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, Response
 from datetime import datetime
 import os
 
 from ..services.asr_service import get_asr_service
 from ..config import get_config
+from ..utils.metrics import get_metrics_collector
 
 health_bp = Blueprint('health', __name__)
 
@@ -98,4 +99,37 @@ def version():
         "name": "Edge TTS Web Interface",
         "version": "2.0.0",
         "api_version": "v2",
+    })
+
+
+@health_bp.route('/metrics', methods=['GET'])
+def metrics():
+    """
+    Prometheus 指标端点
+    
+    返回 Prometheus 格式的指标数据
+    """
+    collector = get_metrics_collector()
+    metrics_output = collector.export_prometheus_format()
+    
+    return Response(
+        metrics_output,
+        mimetype='text/plain; charset=utf-8'
+    )
+
+
+@health_bp.route('/metrics/stats', methods=['GET'])
+def metrics_stats():
+    """
+    指标统计摘要端点
+    
+    返回 JSON 格式的统计摘要
+    """
+    collector = get_metrics_collector()
+    stats = collector.get_stats()
+    
+    return jsonify({
+        "success": True,
+        "stats": stats,
+        "timestamp": datetime.now().isoformat()
     })
