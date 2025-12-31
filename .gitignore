@@ -57,6 +57,12 @@ data/*.db
 *.sqlite
 *.sqlite3
 
+# Recordings (test audio files)
+recordings/
+
 # Temporary files
 *.tmp
 *.temp
+
+# Hypothesis test cache
+.hypothesis/
