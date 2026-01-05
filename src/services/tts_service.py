@@ -44,6 +44,7 @@ class TTSService:
         self.default_voice = config.tts.default_voice
         self.default_rate = config.tts.default_rate
         self.default_volume = config.tts.default_volume
+        self.default_pitch = config.tts.default_pitch
         self.timeout = config.tts.timeout
         self.ffmpeg_timeout = config.tts.ffmpeg_timeout
         self.max_retries = config.tts.max_retries
@@ -80,6 +81,7 @@ class TTSService:
         filename: Optional[str] = None,
         rate: Optional[int] = None,
         volume: Optional[int] = None,
+        pitch: Optional[int] = None,
     ) -> str:
         def _sapi_synthesize_wav(out_path: str, sapi_rate: Optional[int], sapi_volume: Optional[int]) -> None:
             if os.name != "nt":
@@ -157,11 +159,13 @@ class TTSService:
             rate = self.default_rate
         if volume is None:
             volume = self.default_volume
+        if pitch is None:
+            pitch = self.default_pitch
         
         if not voice_name:
             raise TTSVoiceNotFound(f"未知语音: {voice}")
         
-        logger.info(f"[TTS] 合成请求 | text_length={len(text)} | voice={voice} | rate={rate} | volume={volume} | format={output_format}")
+        logger.info(f"[TTS] 合成请求 | text_length={len(text)} | voice={voice} | rate={rate} | volume={volume} | pitch={pitch} | format={output_format}")
 
         edge_tts_bin = shutil.which("edge-tts")
         if not edge_tts_bin:
@@ -222,6 +226,10 @@ class TTSService:
                     if volume is not None and volume != 0:
                         volume_str = f"+{volume}%" if volume > 0 else f"{volume}%"
                         cmd.append(f"--volume={volume_str}")
+                    # 添加音调参数（edge-tts格式：--pitch=+50Hz 或 --pitch=-20Hz）
+                    if pitch is not None and pitch != 0:
+                        pitch_str = f"+{pitch}Hz" if pitch > 0 else f"{pitch}Hz"
+                        cmd.append(f"--pitch={pitch_str}")
                     if edge_proxy:
                         cmd.extend(["--proxy", edge_proxy])
                     logger.info(f"[TTS] attempt {attempt}/{attempts} exec: {' '.join(cmd[:6])} ... --write-media {mp3_path}")

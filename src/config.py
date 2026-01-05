@@ -61,9 +61,10 @@ class ASRConfig:
 class TTSConfig:
     """语音合成配置"""
     output_dir: str = "data/tts"
-    default_voice: str = "yunjian"
-    default_rate: Optional[int] = 0  # 默认语速，None表示不设置。edge-tts建议范围-20~+50
-    default_volume: Optional[int] = None  # 默认音量，None表示不设置。edge-tts范围-100~100
+    default_voice: str = "xiaoxiao"
+    default_rate: Optional[int] = -60  # 默认语速，None表示不设置。edge-tts建议范围-20~+50
+    default_volume: Optional[int] = -20  # 默认音量，None表示不设置。edge-tts范围-100~100
+    default_pitch: Optional[int] = -60  # 默认音调(Hz)，None表示不设置。正值变高，负值变低，建议范围-50~+50
     voices: dict = field(default_factory=lambda: {
         # 女声
         "xiaoxiao": "zh-CN-XiaoxiaoNeural",      # 晓晓 - 温暖，适合新闻/小说

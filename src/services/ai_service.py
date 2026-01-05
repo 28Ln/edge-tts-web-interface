@@ -70,7 +70,9 @@ class AIService:
             logger.info(
                 f"[AI] model config | configured={self.model} | env_fallbacks={'set' if (env_fallbacks and env_fallbacks.strip()) else 'unset'}"
             )
-            self.model = self._select_working_model(self.model)
+            # 跳过模型探测，直接使用配置的模型（节省10秒启动时间）
+            # self.model = self._select_working_model(self.model)
+            logger.info(f"[AI] 使用配置模型 | model={self.model}")
         
         # 使用会话存储（支持内存/Redis）
         self._session_store = get_session_store()
@@ -200,12 +202,16 @@ class AIService:
 - Location: China (default)"""
 
         if short:
-            return f"""You are a helpful assistant.
+            return f"""You are a helpful voice assistant.
 
 {context}
 
-IMPORTANT: Reply in the SAME language as the user's question.
-Keep answers concise (under 100 words)."""
+IMPORTANT RULES:
+1. Reply in the SAME language as the user's question.
+2. Keep answers concise (under 100 words).
+3. DO NOT use any markdown formatting (no *, #, -, ```, etc).
+4. Use plain text only, suitable for text-to-speech.
+5. Use natural spoken language, not written style."""
         
         return f"""You are a helpful assistant.
 
