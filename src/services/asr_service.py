@@ -215,6 +215,9 @@ class ASRService:
     def __init__(self) -> None:
         config = get_config()
         
+        # 调试标志：跳过识别直接返回空（用于测试兜底流程）
+        self.debug_skip_recognize = False  
+        
         # 初始化引擎
         self.engines = {
             "vosk": VoskEngine(config.asr.vosk_model_path),
@@ -350,6 +353,11 @@ class ASRService:
         start_time = time.time()
         engine = engine or self.default_engine
         logger.info(f"[ASR] 识别请求 | engine={engine} | format={audio_format} | size={len(audio_data)}")
+        
+        # 调试模式：跳过识别直接返回空
+        if self.debug_skip_recognize:
+            logger.info(f"[ASR] 调试模式：跳过识别，返回空")
+            return ""
         
         try:
             # 检查引擎

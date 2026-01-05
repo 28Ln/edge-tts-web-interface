@@ -61,7 +61,7 @@ class ASRConfig:
 class TTSConfig:
     """语音合成配置"""
     output_dir: str = "data/tts"
-    default_voice: str = "xiaoxiao"
+    default_voice: str = "yunxi"
     voices: dict = field(default_factory=lambda: {
         "xiaoxiao": "zh-CN-XiaoxiaoNeural",
         "yunxi": "zh-CN-YunxiNeural",

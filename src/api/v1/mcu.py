@@ -14,6 +14,7 @@ from ...services.ai_service import get_ai_service
 from ...services.asr_service import get_asr_service
 from ...services.tts_service import get_tts_service
 from ...utils.logger import get_api_logger
+from ...utils.audio import pcm_to_wav
 from ...exceptions import ValidationError, ASRError, AIError, TTSError, AudioError
 
 logger = get_api_logger()
@@ -74,11 +75,25 @@ def stt():
         if len(audio_data) > MAX_AUDIO_SIZE:
             raise ValidationError(f"音频文件过大，最大支持 {MAX_AUDIO_SIZE // 1024 // 1024}MB")
         
+        # 调试：保存原始音频
+        debug_dir = os.path.join(os.getcwd(), "recordings", "stt_debug")
+        os.makedirs(debug_dir, exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        debug_path = os.path.join(debug_dir, f"{ts}_raw.bin")
+        with open(debug_path, "wb") as f:
+            f.write(audio_data)
+        logger.info(f"[STT] 调试：原始音频已保存 | path={debug_path} | header={audio_data[:20]}")
+        
         logger.info(f"[STT] 开始处理 | engine={engine} | format={audio_format} | size={len(audio_data)}")
         
         # 识别
         asr_service = get_asr_service()
         text = asr_service.recognize(audio_data, engine=engine, audio_format=audio_format)
+        
+        # 识别为空时返回兜底文本
+        if not text or not text.strip():
+            text = "我没听清，请再说一遍。"
+            logger.warning(f"[STT] 识别为空，返回兜底文本")
         
         duration = (time.time() - start_time) * 1000
         logger.info(f"[STT] 处理完成 | text_length={len(text)} | duration={duration:.2f}ms")
@@ -368,10 +383,31 @@ def tts():
 
 # ==================== 语音对话 ====================
 
+# 调试标志：跳过所有处理，直接返回ESP32发来的原始音频
+DEBUG_SKIP_VOICE_CHAT = False
+
 @mcu_bp.route('/voice_chat', methods=['POST'])
 def voice_chat():
     """一站式语音对话"""
     start_time = time.time()
+    
+    # 调试模式：保存原始PCM并返回
+    if DEBUG_SKIP_VOICE_CHAT:
+        audio_data = request.get_data()
+        logger.info(f"[VOICE_CHAT] 调试模式：收到音频大小={len(audio_data)} bytes | header={audio_data[:20]}")
+        
+        # 保存原始PCM用于分析
+        debug_dir = os.path.join(os.getcwd(), "recordings", "debug_pcm")
+        os.makedirs(debug_dir, exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        pcm_path = os.path.join(debug_dir, f"{ts}_esp32.pcm")
+        with open(pcm_path, "wb") as f:
+            f.write(audio_data)
+        logger.info(f"[VOICE_CHAT] 调试模式：原始PCM已保存 | path={pcm_path}")
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"[VOICE_CHAT] 调试模式：原样返回 | duration={duration:.2f}ms")
+        return audio_data, 200, {'Content-Type': 'application/octet-stream'}
     
     try:
         engine = request.args.get('engine', 'tencent')
@@ -399,6 +435,60 @@ def voice_chat():
             raise ValidationError(f"音频文件过大，最大支持 {MAX_AUDIO_SIZE // 1024 // 1024}MB")
         
         logger.info(f"[VOICE_CHAT] 开始处理 | engine={engine} | out={output_type} | audio_size={len(audio_data)}")
+        
+        # 调试：打印音频文件详细信息
+        logger.info(f"[VOICE_CHAT] 调试：音频大小={len(audio_data)} bytes | header={audio_data[:20]}")
+        
+        # 解析WAV头信息或检测裸PCM
+        if audio_data[:4] == b'RIFF':
+            import struct
+            try:
+                chunk_size = struct.unpack('<I', audio_data[4:8])[0]
+                audio_fmt = struct.unpack('<H', audio_data[20:22])[0]
+                channels = struct.unpack('<H', audio_data[22:24])[0]
+                sample_rate = struct.unpack('<I', audio_data[24:28])[0]
+                byte_rate = struct.unpack('<I', audio_data[28:32])[0]
+                bits_per_sample = struct.unpack('<H', audio_data[34:36])[0]
+                duration_sec = (len(audio_data) - 44) / byte_rate if byte_rate > 0 else 0
+                logger.info(f"[VOICE_CHAT] WAV信息: fmt={audio_fmt} | channels={channels} | sample_rate={sample_rate}Hz | bits={bits_per_sample} | duration={duration_sec:.2f}s")
+            except Exception as e:
+                logger.warning(f"[VOICE_CHAT] WAV解析失败: {e}")
+        else:
+            # 非WAV格式，ESP32发来的是16kHz/16bit/stereo的裸PCM，需要转成16kHz mono WAV
+            logger.warning(f"[VOICE_CHAT] 非WAV格式，头部: {audio_data[:4]}，尝试作为PCM处理")
+            pcm_duration = len(audio_data) / (16000 * 2 * 2)  # 16kHz 16bit stereo
+            logger.info(f"[VOICE_CHAT] PCM信息: 16kHz/16bit/stereo | size={len(audio_data)} | duration={pcm_duration:.2f}s")
+            
+            # 用ffmpeg转换：16kHz stereo PCM -> 16kHz mono WAV
+            import tempfile
+            import subprocess
+            temp_pcm = tempfile.NamedTemporaryFile(suffix='.pcm', delete=False)
+            temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            try:
+                temp_pcm.write(audio_data)
+                temp_pcm.close()
+                temp_wav.close()
+                
+                result = subprocess.run([
+                    "ffmpeg", "-f", "s16le", "-ar", "16000", "-ch_layout", "stereo",
+                    "-i", temp_pcm.name, "-ch_layout", "mono", "-ar", "16000", "-y", temp_wav.name
+                ], capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    with open(temp_wav.name, 'rb') as f:
+                        audio_data = f.read()
+                    logger.info(f"[VOICE_CHAT] PCM转WAV成功 | wav_size={len(audio_data)}")
+                else:
+                    logger.error(f"[VOICE_CHAT] PCM转WAV失败: {result.stderr}")
+            finally:
+                for f in [temp_pcm.name, temp_wav.name]:
+                    if os.path.exists(f):
+                        try:
+                            os.unlink(f)
+                        except:
+                            pass
+            audio_data = pcm_to_wav(audio_data, sample_rate=16000, channels=1, sample_width=2)
+            logger.info(f"[VOICE_CHAT] PCM转WAV完成 | wav_size={len(audio_data)}")
 
         try:
             save_dir = os.environ.get("VOICE_CHAT_RECORDINGS_DIR") or os.path.join(os.getcwd(), "recordings", "voice_chat")

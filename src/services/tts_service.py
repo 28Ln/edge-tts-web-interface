@@ -101,8 +101,10 @@ class TTSService:
                 ps_parts.append(f"$s.Rate={sapi_rate};")
             if sapi_volume is not None:
                 ps_parts.append(f"$s.Volume={sapi_volume};")
-            ps_parts.append(f"$s.SetOutputToWaveFile('{out_path.replace("'", "''")}');")
-            ps_parts.append(f"$s.Speak('{text.replace("'", "''")}');")
+            escaped_path = out_path.replace("'", "''")
+            escaped_text = text.replace("'", "''")
+            ps_parts.append(f"$s.SetOutputToWaveFile('{escaped_path}');")
+            ps_parts.append(f"$s.Speak('{escaped_text}');")
             ps_parts.append("$s.Dispose();")
             ps = " ".join(ps_parts)
             subprocess.run(

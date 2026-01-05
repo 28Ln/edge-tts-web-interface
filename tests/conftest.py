@@ -18,7 +18,7 @@ os.environ.setdefault('LOG_LEVEL', 'WARNING')
 os.environ.setdefault('LOG_FORMAT', 'text')
 os.environ.setdefault('ADMIN_PASSWORD', 'admin123')
 # 测试环境使用较高的限流阈值
-os.environ.setdefault('RATE_LIMIT_PER_MINUTE', '1000')
+os.environ['RATE_LIMIT_PER_MINUTE'] = '10000'
 
 
 @pytest.fixture(autouse=True)
