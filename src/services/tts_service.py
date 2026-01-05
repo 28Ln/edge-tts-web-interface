@@ -42,6 +42,8 @@ class TTSService:
         self.output_dir = config.tts.output_dir
         self.voices = config.tts.voices
         self.default_voice = config.tts.default_voice
+        self.default_rate = config.tts.default_rate
+        self.default_volume = config.tts.default_volume
         self.timeout = config.tts.timeout
         self.ffmpeg_timeout = config.tts.ffmpeg_timeout
         self.max_retries = config.tts.max_retries
@@ -150,10 +152,16 @@ class TTSService:
         voice = voice or self.default_voice
         voice_name = self.get_voice_name(voice)
         
+        # 使用默认值（只有当参数为None时才用默认值）
+        if rate is None:
+            rate = self.default_rate
+        if volume is None:
+            volume = self.default_volume
+        
         if not voice_name:
             raise TTSVoiceNotFound(f"未知语音: {voice}")
         
-        logger.info(f"[TTS] 合成请求 | text_length={len(text)} | voice={voice} | format={output_format}")
+        logger.info(f"[TTS] 合成请求 | text_length={len(text)} | voice={voice} | rate={rate} | volume={volume} | format={output_format}")
 
         edge_tts_bin = shutil.which("edge-tts")
         if not edge_tts_bin:
@@ -189,14 +197,15 @@ class TTSService:
             logger.info(f"[TTS] proxy env detected: {proxy_hint}")
         edge_proxy = proxy_hint.get("HTTPS_PROXY") or proxy_hint.get("HTTP_PROXY")
 
-        if output_format == "wav" and os.name == "nt":
-            try:
-                _sapi_synthesize_wav(wav_path, rate, volume)
-                duration = (time.time() - start_time) * 1000
-                logger.info(f"[TTS] SAPI success | path={wav_path} | duration={duration:.2f}ms")
-                return wav_path
-            except Exception as e:
-                logger.error(f"[TTS] SAPI failed, fallback to edge-tts | error={e}")
+        # 禁用 SAPI，强制使用 edge-tts（声音更好，支持多种语音角色）
+        # if output_format == "wav" and os.name == "nt":
+        #     try:
+        #         _sapi_synthesize_wav(wav_path, rate, volume)
+        #         duration = (time.time() - start_time) * 1000
+        #         logger.info(f"[TTS] SAPI success | path={wav_path} | duration={duration:.2f}ms")
+        #         return wav_path
+        #     except Exception as e:
+        #         logger.error(f"[TTS] SAPI failed, fallback to edge-tts | error={e}")
 
         try:
             last_err: Optional[Exception] = None
@@ -205,9 +214,17 @@ class TTSService:
                 try:
                     # 使用 edge-tts 生成 MP3
                     cmd = [edge_tts_bin, "--voice", voice_name, "--text", text, "--write-media", mp3_path]
+                    # 添加语速参数（edge-tts格式：--rate=+20% 或 --rate=-20%）
+                    if rate is not None and rate != 0:
+                        rate_str = f"+{rate}%" if rate > 0 else f"{rate}%"
+                        cmd.append(f"--rate={rate_str}")
+                    # 添加音量参数（edge-tts格式：--volume=+20% 或 --volume=-20%）
+                    if volume is not None and volume != 0:
+                        volume_str = f"+{volume}%" if volume > 0 else f"{volume}%"
+                        cmd.append(f"--volume={volume_str}")
                     if edge_proxy:
                         cmd.extend(["--proxy", edge_proxy])
-                    logger.info(f"[TTS] attempt {attempt}/{attempts} exec: {' '.join(cmd[:4])} ... --write-media {mp3_path}")
+                    logger.info(f"[TTS] attempt {attempt}/{attempts} exec: {' '.join(cmd[:6])} ... --write-media {mp3_path}")
                     subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=self.timeout)
 
                     if output_format == "wav":

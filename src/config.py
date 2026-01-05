@@ -9,7 +9,7 @@ load_dotenv(override=True)
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 # 环境类型
@@ -61,13 +61,22 @@ class ASRConfig:
 class TTSConfig:
     """语音合成配置"""
     output_dir: str = "data/tts"
-    default_voice: str = "yunxi"
+    default_voice: str = "yunjian"
+    default_rate: Optional[int] = 0  # 默认语速，None表示不设置。edge-tts建议范围-20~+50
+    default_volume: Optional[int] = None  # 默认音量，None表示不设置。edge-tts范围-100~100
     voices: dict = field(default_factory=lambda: {
-        "xiaoxiao": "zh-CN-XiaoxiaoNeural",
-        "yunxi": "zh-CN-YunxiNeural",
-        "xiaoyi": "zh-CN-XiaoyiNeural",
-        "yunjian": "zh-CN-YunjianNeural",
+        # 女声
+        "xiaoxiao": "zh-CN-XiaoxiaoNeural",      # 晓晓 - 温暖，适合新闻/小说
+        "xiaoyi": "zh-CN-XiaoyiNeural",          # 晓艺 - 活泼，适合卡通/小说
+        "xiaobei": "zh-CN-liaoning-XiaobeiNeural",  # 晓北 - 东北方言，幽默
+        "xiaoni": "zh-CN-shaanxi-XiaoniNeural",    # 晓妮 - 陕西方言，明亮
+        # 男声
+        "yunjian": "zh-CN-YunjianNeural",        # 云健 - 激情，适合体育/小说
+        "yunxi": "zh-CN-YunxiNeural",            # 云希 - 阳光活泼，适合小说
+        "yunxia": "zh-CN-YunxiaNeural",          # 云夏 - 可爱，适合卡通/小说
+        "yunyang": "zh-CN-YunyangNeural",        # 云扬 - 专业可靠，适合新闻
     })
+
     # 超时配置
     timeout: int = 30  # TTS 服务超时（秒）
     ffmpeg_timeout: int = 10  # FFmpeg 转换超时（秒）
