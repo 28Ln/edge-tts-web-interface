@@ -1,15 +1,18 @@
 # 文档目录
 
+## 快速开始
+- [快速开始](QUICKSTART.md) - 安装和运行指南
+
 ## API 文档
-- [MCU API 文档](api/mcu.md) - 嵌入式设备专用 API
-- [微信 API 文档](api/wechat.md) - 微信小程序 API
-- [错误码说明](api/error_codes.md) - API 错误码参考
+- [API 文档](API.md) - 完整 API 接口说明
+- [MCU API](api/mcu.md) - 嵌入式设备专用 API
+- [认证说明](api/auth.md) - API Key 认证和计费
+- [错误码](error-codes.md) - 错误码参考
 
-## 开发文档
-- [开发指南](development.md) - 本地开发环境搭建
+## 系统文档
 - [架构说明](architecture.md) - 项目架构设计
-- [测试指南](testing.md) - 测试运行和编写指南
+- [配置文档](configuration.md) - 配置选项说明
+- [测试指南](testing.md) - 测试运行指南
 
-## 部署文档
-- [部署指南](deployment.md) - 服务器部署说明
-- [Docker 部署](docker.md) - 容器化部署
+## 其他
+- [计费系统](BILLING.md) - 用户管理和配额说明

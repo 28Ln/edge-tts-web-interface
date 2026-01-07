@@ -20,38 +20,16 @@ edge-tts-web-interface/
 │   │   ├── tts_service.py    # 语音合成服务
 │   │   └── session_store.py  # 会话存储
 │   ├── repositories/         # 数据访问层
-│   │   ├── user_repository.py
-│   │   ├── api_key_repository.py
-│   │   └── quota_repository.py
 │   ├── auth/                 # 认证模块
-│   │   ├── api_key.py        # API Key 管理
-│   │   ├── models.py         # 数据模型
-│   │   └── quota.py          # 配额管理
 │   ├── exceptions/           # 异常处理
-│   │   ├── errors.py         # 异常类
-│   │   └── handlers.py       # 全局处理器
 │   ├── utils/                # 工具函数
-│   │   ├── audio.py          # 音频处理
-│   │   ├── logger.py         # 日志
-│   │   ├── middleware.py     # 中间件
-│   │   ├── retry.py          # 重试机制
-│   │   └── cleanup.py        # 清理任务
 │   ├── models/               # 数据模型
 │   ├── config.py             # 配置管理
 │   ├── constants.py          # 常量定义
 │   └── main.py               # 应用入口
 ├── data/                     # 数据目录
-│   ├── auth.db               # 认证数据库
-│   ├── logs/                 # 日志文件
-│   ├── tts/                  # TTS 缓存
-│   └── uploads/              # 上传文件
 ├── docs/                     # 文档
-│   ├── api/                  # API 文档
-│   ├── architecture.md       # 架构文档
-│   ├── configuration.md      # 配置文档
-│   └── error-codes.md        # 错误码文档
 ├── esp32-sdk/                # ESP32 SDK
-├── esp32s3/                  # ESP32-S3 固件
 ├── examples/                 # 示例代码
 │   ├── android/
 │   ├── esp32/
@@ -59,11 +37,13 @@ edge-tts-web-interface/
 ├── tests/                    # 测试
 │   ├── unit/                 # 单元测试
 │   ├── integration/          # 集成测试
-│   └── e2e/                  # 端到端测试
+│   ├── e2e/                  # 端到端测试
+│   └── security/             # 安全测试
+├── scripts/                  # 脚本工具
 ├── static/                   # 静态文件
 ├── templates/                # 模板文件
 ├── docker/                   # Docker 配置
-└── scripts/                  # 脚本
+└── migrations/               # 数据库迁移
 ```
 
 ## 分层架构

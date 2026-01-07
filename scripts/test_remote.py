@@ -3,10 +3,10 @@
 远程测试脚本 - 用于从其他电脑测试 Edge TTS Web Interface
 
 使用方法:
-    python test_remote.py <服务器IP>
+    python scripts/test_remote.py <服务器IP>
     
 示例:
-    python test_remote.py 192.168.0.2
+    python scripts/test_remote.py 192.168.0.2
 """
 
 import sys
@@ -61,9 +61,9 @@ def test_server(server_ip, port=3003):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("用法: python test_remote.py <服务器IP> [端口]")
-        print("示例: python test_remote.py 192.168.0.2")
-        print("      python test_remote.py 192.168.0.2 3003")
+        print("用法: python scripts/test_remote.py <服务器IP> [端口]")
+        print("示例: python scripts/test_remote.py 192.168.0.2")
+        print("      python scripts/test_remote.py 192.168.0.2 3003")
         sys.exit(1)
     
     server_ip = sys.argv[1]

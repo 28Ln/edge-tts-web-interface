@@ -66,3 +66,28 @@ recordings/
 
 # Hypothesis test cache
 .hypothesis/
+
+# Test output files
+test_response.wav
+data/test_out/*.wav
+
+# Task lists (temporary)
+TODO_*.md
+
+# Test output files
+test_response.wav
+TODO_*.md
+
+# Test output files
+test_response.wav
+data/test_out/*.wav
+
+# Task lists (temporary)
+TODO_*.md
+
+# Test output files
+test_response.wav
+data/test_out/*.wav
+
+# Task lists (temporary)
+TODO_*.md

@@ -1,9 +1,5 @@
 # Edge TTS Web Interface
 
-**[中文](README.md)** | **[English](README.en.md)**
-
----
-
 基于 Flask 的语音服务平台，支持 TTS (语音合成)、ASR (语音识别)、AI 问答。
 
 ## ✨ 功能特性
@@ -74,7 +70,7 @@ curl http://localhost:3003/mcu/ping
 |------|------|
 | [快速开始](docs/QUICKSTART.md) | 安装和运行 |
 | [API文档](docs/API.md) | 完整API接口 |
-| [测试文档](docs/TESTING.md) | 测试指南 |
+| [测试文档](docs/testing.md) | 测试指南 |
 | [配置文档](docs/configuration.md) | 配置选项 |
 | [架构文档](docs/architecture.md) | 项目架构 |
 | [错误码](docs/error-codes.md) | 错误码说明 |
@@ -107,11 +103,20 @@ py -m pytest tests/ --cov=src
 │   ├── repositories/     # 数据访问
 │   ├── auth/             # 认证模块
 │   └── utils/            # 工具函数
-├── data/                 # 数据目录
+├── tests/                # 自动化测试
+│   ├── unit/             # 单元测试
+│   ├── integration/      # 集成测试
+│   └── e2e/              # 端到端测试
+├── scripts/              # 工具脚本
 ├── docs/                 # 文档
-├── tests/                # 测试
+├── data/                 # 数据目录
+├── docker/               # Docker配置
 ├── esp32-sdk/            # ESP32 SDK
-└── esp32s3/              # ESP32固件
+├── examples/             # 示例代码
+│   ├── android/          # Android示例
+│   ├── esp32/            # ESP32示例
+│   └── python/           # Python示例
+└── static/               # 静态资源
 ```
 
 ## 🔌 ESP32 支持
